@@ -1,3 +1,4 @@
+import MurmurInput
 import MurmurDictionary
 import AVFoundation
 import AppKit
@@ -46,6 +47,13 @@ final class DictationController {
     private(set) var level: Float = 0
 
     private let hotkey = HotkeyMonitor()
+    private let gesture = PushToTalkGesture()
+    /// Armed after a tap, to see whether a second one lands. Held so a second tap can
+    /// cancel it — otherwise the pending stop would fire underneath a latched recording.
+    private var tapTimer: Task<Void, Never>?
+
+    /// Recording hands-free after a double-tap. Drives the HUD's lock indicator.
+    var isLatched: Bool { gesture.isLatched }
     private let capture = AudioCapture()
     private let makeEngine: @Sendable () -> any TranscriptionEngine
 
@@ -89,14 +97,49 @@ final class DictationController {
     @discardableResult
     func activate() -> Bool {
         hotkey.key = Settings.shared.pushToTalkKey
-        hotkey.onPress = { [weak self] in self?.beginDictation() }
-        hotkey.onRelease = { [weak self] in self?.endDictation() }
+        gesture.isLatchEnabled = Settings.shared.latchEnabled
+        gesture.reset()
+        hotkey.onPress = { [weak self] in self?.apply(self?.gesture.press() ?? .none) }
+        hotkey.onRelease = { [weak self] in self?.apply(self?.gesture.release() ?? .none) }
         return hotkey.start()
     }
 
     func deactivate() {
         hotkey.stop()
+        tapTimer?.cancel()
+        tapTimer = nil
+        gesture.reset()
         cancelDictation()
+    }
+
+    /// Carries out what the gesture decided.
+    private func apply(_ action: PushToTalkGesture.Action) {
+        switch action {
+        case .begin:
+            beginDictation()
+
+        case .end:
+            tapTimer?.cancel()
+            tapTimer = nil
+            endDictation()
+
+        case .latch:
+            // The recording started by the first tap simply keeps running.
+            tapTimer?.cancel()
+            tapTimer = nil
+
+        case .armTapTimer:
+            tapTimer?.cancel()
+            tapTimer = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(PushToTalkGesture.doubleTapWindow))
+                guard !Task.isCancelled, let self else { return }
+                self.tapTimer = nil
+                self.apply(self.gesture.tapTimerFired())
+            }
+
+        case .none:
+            break
+        }
     }
 
     /// Re-arms the tap after the user picks a different push-to-talk key.
@@ -123,6 +166,11 @@ final class DictationController {
     /// finishing — otherwise every run would wait the full round trip end to end.
     func stopButtonRecording() {
         WisprTrigger.release()
+        // Clears a latch as well: stopping from the button while latched must not leave the
+        // gesture believing it is still recording, or the next tap would read as "stop".
+        tapTimer?.cancel()
+        tapTimer = nil
+        gesture.reset()
         endDictation()
     }
 

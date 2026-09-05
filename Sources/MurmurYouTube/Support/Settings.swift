@@ -46,6 +46,12 @@ final class Settings {
         didSet { defaults.set(smartCleanup, forKey: Keys.smartCleanup) }
     }
 
+    /// Double-tap the push-to-talk key to keep recording with it released; tap again to
+    /// stop. Off = hold-to-talk only.
+    var latchEnabled: Bool {
+        didSet { defaults.set(latchEnabled, forKey: Keys.latchEnabled) }
+    }
+
     /// Mine recurring names and jargon out of past transcripts and prime the engine with
     /// them, alongside the hand-written dictionary. Off = dictionary only.
     var learnVocabulary: Bool {
@@ -67,11 +73,16 @@ final class Settings {
         static let smartCleanup = "smartCleanup"
         static let compareMode = "compareMode"
         static let learnVocabulary = "learnVocabulary"
+        static let latchEnabled = "latchEnabled"
     }
 
     private init() {
-        let raw = defaults.string(forKey: Keys.pushToTalkKey) ?? PushToTalkKey.rightOption.rawValue
-        pushToTalkKey = PushToTalkKey(rawValue: raw) ?? .rightOption
+        // fn by default. It is the one candidate that is not already spoken for: Right ⌥
+        // is AltGr on German, Polish, UK and most Latin-American layouts, and Right ⌘ is
+        // live in every shortcut a user already has muscle memory for. This only affects a
+        // machine that has never chosen a key — a stored preference always wins.
+        let raw = defaults.string(forKey: Keys.pushToTalkKey) ?? PushToTalkKey.fn.rawValue
+        pushToTalkKey = PushToTalkKey(rawValue: raw) ?? .fn
         // Apple by default: no download, no dependency, live text while speaking.
         engine = SpeechEngineChoice(rawValue: defaults.string(forKey: Keys.engine) ?? "") ?? .apple
         cleanupEnabled = defaults.object(forKey: Keys.cleanupEnabled) as? Bool ?? true
@@ -81,5 +92,6 @@ final class Settings {
         // On by default: it only ever fills bias slots the dictionary left empty, and
         // it costs nothing until there's enough history to clear the evidence threshold.
         learnVocabulary = defaults.object(forKey: Keys.learnVocabulary) as? Bool ?? true
+        latchEnabled = defaults.object(forKey: Keys.latchEnabled) as? Bool ?? true
     }
 }

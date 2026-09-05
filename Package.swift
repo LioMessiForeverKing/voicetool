@@ -18,16 +18,33 @@ let package = Package(
             path: "Sources/MurmurDictionary",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Push-to-talk gesture recognition. Split out for the same reason as the
+        // dictionary: it is pure, timing-dependent logic that is effectively impossible to
+        // verify by hand — you cannot reliably tap a key twice inside 350ms on demand — and
+        // the app target itself cannot be unit tested, because it needs macOS 26 while the
+        // CI runner is older than that.
+        .target(
+            name: "MurmurInput",
+            path: "Sources/MurmurInput",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .executableTarget(
             name: "MurmurYouTube",
             dependencies: [
                 "MurmurDictionary",
+                "MurmurInput",
                 .product(name: "FluidAudio", package: "FluidAudio"),
             ],
             path: "Sources/MurmurYouTube",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
+        ),
+        .testTarget(
+            name: "MurmurInputTests",
+            dependencies: ["MurmurInput"],
+            path: "Tests/MurmurInputTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "MurmurDictionaryTests",

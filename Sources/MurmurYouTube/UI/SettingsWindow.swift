@@ -34,6 +34,17 @@ struct SettingsWindow: View {
                     }
                     note("Hold this key anywhere to dictate. The window's Record button works "
                         + "regardless of what's focused.")
+
+                    Toggle(isOn: $settings.latchEnabled) {
+                        Silkscreen(text: "Double-tap to keep recording")
+                    }
+                    .toggleStyle(.switch)
+                    note("Tap twice to carry on with the key released, then tap once to stop. "
+                        + "Holding is unaffected — it still stops the moment you let go.")
+
+                    if settings.pushToTalkKey == .fn {
+                        note(fnWarning)
+                    }
                 }
 
                 panel(label: "Model") {
@@ -96,6 +107,18 @@ struct SettingsWindow: View {
             .padding(DS.Space.panel)
         }
         .frame(width: 520, height: 660)
+    }
+
+    /// fn is the one key here the app cannot take exclusive use of.
+    ///
+    /// `PushToTalkKey.shouldConsumeEvent` is false for fn on purpose — swallowing it would
+    /// break fn+arrow, fn+delete and the emoji picker — so macOS still sees every press and
+    /// runs whatever "Press 🌐 key to" is set to. Double-tapping therefore fires that action
+    /// twice, which on a default Mac means the emoji picker opening over what you're
+    /// dictating into. Worth saying here rather than leaving it to be discovered.
+    private var fnWarning: String {
+        "macOS also acts on fn. If the emoji picker or input-source switcher appears while "
+            + "you dictate, set System Settings ▸ Keyboard ▸ “Press 🌐 key to” to “Do Nothing”."
     }
 
     /// Reports the *live* selection rather than restating the setting. Whether learning is

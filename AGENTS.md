@@ -32,6 +32,10 @@ not as "unfinished".
 
 **`shared/dictionary-test-vectors.json` is the specification for correction behaviour.**
 
+CI runs `swift test` unfiltered, and it must stay that way. It once ran
+`--filter VectorTests`, which meant any suite added later was compiled but never executed —
+the vocabulary learner's tests were green through two merges without one assertion running.
+
 Both implementations run it in CI. If you change how corrections work, change the vectors
 first, watch both sides go red, then make them green. Changing one implementation to "fix"
 a failing vector without changing the other is how the two silently diverge — and only one

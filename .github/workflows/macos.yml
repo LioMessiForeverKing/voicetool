@@ -36,11 +36,17 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      # The app target needs macOS 26 and the Speech framework, which the runner image
-      # does not have. The dictionary target is deliberately platform-neutral, so it — and
-      # the contract that matters here — builds and tests anywhere.
-      - name: Test the dictionary target
-        run: swift test --filter VectorTests
+      # The app target needs macOS 26 and the Speech framework, which the runner image does
+      # not have. The library targets are deliberately platform-neutral, so they — and the
+      # contract that matters here — build and test anywhere.
+      #
+      # Deliberately unfiltered. This previously ran `--filter VectorTests`, which silently
+      # meant every suite added afterwards was compiled and then never executed: the
+      # vocabulary learner's 18 tests went green for two merges without a single assertion
+      # being run. A filter here has to be maintained in lockstep with the test targets, and
+      # failing open is exactly the wrong direction for a gate.
+      - name: Test the library targets
+        run: swift test
 
       - name: Confirm the vectors on both sides are identical
         run: |
