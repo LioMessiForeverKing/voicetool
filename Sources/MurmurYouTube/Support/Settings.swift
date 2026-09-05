@@ -1,3 +1,4 @@
+import MurmurInput
 import Foundation
 import Observation
 
@@ -22,8 +23,8 @@ enum SpeechEngineChoice: String, CaseIterable, Sendable {
 final class Settings {
     static let shared = Settings()
 
-    var pushToTalkKey: PushToTalkKey {
-        didSet { defaults.set(pushToTalkKey.rawValue, forKey: Keys.pushToTalkKey) }
+    var hotkey: Hotkey {
+        didSet { defaults.set(hotkey.storageValue, forKey: Keys.pushToTalkKey) }
     }
 
     var engine: SpeechEngineChoice {
@@ -77,12 +78,11 @@ final class Settings {
     }
 
     private init() {
-        // fn by default. It is the one candidate that is not already spoken for: Right ⌥
-        // is AltGr on German, Polish, UK and most Latin-American layouts, and Right ⌘ is
-        // live in every shortcut a user already has muscle memory for. This only affects a
-        // machine that has never chosen a key — a stored preference always wins.
-        let raw = defaults.string(forKey: Keys.pushToTalkKey) ?? PushToTalkKey.fn.rawValue
-        pushToTalkKey = PushToTalkKey(rawValue: raw) ?? .fn
+        // Key reused from the three-preset version, and `Hotkey(storageValue:)` still
+        // parses what that wrote ("fn", "rightOption"), so an existing choice survives the
+        // upgrade instead of silently reverting.
+        let stored = defaults.string(forKey: Keys.pushToTalkKey)
+        hotkey = stored.flatMap(Hotkey.init(storageValue:)) ?? .default
         // Apple by default: no download, no dependency, live text while speaking.
         engine = SpeechEngineChoice(rawValue: defaults.string(forKey: Keys.engine) ?? "") ?? .apple
         cleanupEnabled = defaults.object(forKey: Keys.cleanupEnabled) as? Bool ?? true

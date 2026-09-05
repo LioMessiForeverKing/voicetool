@@ -1,51 +1,9 @@
 import AppKit
+import MurmurInput
 import Carbon.HIToolbox
 import Foundation
 
 /// Which modifier key holds the mic open.
-enum PushToTalkKey: String, CaseIterable, Sendable {
-    case rightOption
-    case fn
-    case rightCommand
-
-    var keyCode: Int64 {
-        switch self {
-        case .rightOption: Int64(kVK_RightOption)   // 61
-        case .fn: Int64(kVK_Function)               // 63
-        case .rightCommand: Int64(kVK_RightCommand) // 54
-        }
-    }
-
-    /// Device-*dependent* bit for this specific physical key.
-    ///
-    /// `CGEventFlags.maskAlternate` is the union mask — it's set whenever *either* Option
-    /// key is down. Using it means: hold Left ⌥, tap Right ⌥, and the release is invisible
-    /// (the union bit is still set by the left key), so `onRelease` never fires. The mic
-    /// stays open, the HUD stays up, and the next press is swallowed too.
-    ///
-    /// These raw values are the NX_DEVICE* masks from IOKit's event system; they carry the
-    /// left/right distinction that the public `CGEventFlags` constants discard.
-    var flag: CGEventFlags {
-        switch self {
-        case .rightOption: CGEventFlags(rawValue: 0x40)   // NX_DEVICERALTKEYMASK
-        case .rightCommand: CGEventFlags(rawValue: 0x10)  // NX_DEVICERCMDKEYMASK
-        case .fn: .maskSecondaryFn                        // no left/right variant exists
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .rightOption: "Right ⌥"
-        case .fn: "fn"
-        case .rightCommand: "Right ⌘"
-        }
-    }
-
-    /// Swallowing `fn` would break fn+arrow, fn+delete and the emoji picker, so we let it
-    /// through. Dedicated right-hand modifiers are safe to consume.
-    var shouldConsumeEvent: Bool { self != .fn }
-}
-
 /// Watches for a held modifier key using a `CGEventTap`.
 ///
 /// A tap is required rather than `NSEvent.addGlobalMonitor` because `fn` and left/right
@@ -57,7 +15,7 @@ final class HotkeyMonitor {
     private var runLoopSource: CFRunLoopSource?
     private var isPressed = false
 
-    var key: PushToTalkKey = .rightOption
+    var hotkey: Hotkey = .default
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
 
@@ -100,7 +58,7 @@ final class HotkeyMonitor {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
 
-        Log.hotkey.info("listening for \(self.key.displayName)")
+        Log.hotkey.info("listening for \(self.hotkey.displayName, privacy: .public)")
         return true
     }
 
@@ -126,14 +84,18 @@ final class HotkeyMonitor {
             return false
         }
 
-        guard type == .flagsChanged, keyCode == key.keyCode else { return false }
+        guard type == .flagsChanged else { return false }
 
-        let nowPressed = flags.contains(key.flag)
+        // Matched on the flags alone. Filtering by keyCode first — which the single-key
+        // version did — cannot work for a chord: the event that completes `fn+⌃` carries
+        // only the keyCode of whichever key moved last, so half the transitions would be
+        // dropped depending on the order the user happened to press them in.
+        let nowPressed = hotkey.isSatisfied(by: flags.rawValue)
         guard nowPressed != isPressed else { return false }
         isPressed = nowPressed
 
         if nowPressed { onPress?() } else { onRelease?() }
 
-        return key.shouldConsumeEvent
+        return hotkey.shouldConsumeEvent
     }
 }
