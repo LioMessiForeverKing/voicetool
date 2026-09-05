@@ -22,3 +22,7 @@ artifacts/
 models/
 *.onnx
 *.nemo
+
+# Written by swiftly when a swift.org toolchain is used here. Pinning a toolchain for
+# everyone (and for CI, which selects its own Xcode) is not the intent — see AGENTS.md.
+.swift-version

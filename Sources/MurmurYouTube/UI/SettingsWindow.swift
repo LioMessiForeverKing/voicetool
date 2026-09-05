@@ -1,3 +1,4 @@
+import MurmurDictionary
 import SwiftUI
 
 /// Settings — hotkey and model, per the brief. Opens on ⌘, via the standard `Settings` scene,
@@ -67,6 +68,14 @@ struct SettingsWindow: View {
                         + "corrections run either way.")
                 }
 
+                panel(label: "Vocabulary") {
+                    Toggle(isOn: $settings.learnVocabulary) {
+                        Silkscreen(text: "Learn from history")
+                    }
+                    .toggleStyle(.switch)
+                    note(vocabularyNote)
+                }
+
                 panel(label: "Startup") {
                     Toggle(isOn: Binding(
                         get: { launchAtLogin.isEnabled },
@@ -86,7 +95,30 @@ struct SettingsWindow: View {
             }
             .padding(DS.Space.panel)
         }
-        .frame(width: 520, height: 560)
+        .frame(width: 520, height: 660)
+    }
+
+    /// Reports the *live* selection rather than restating the setting. Whether learning is
+    /// doing anything depends on how much history has accumulated, and a panel that claimed
+    /// otherwise would be the same act of faith the dictionary's correction log exists to
+    /// avoid.
+    private var vocabularyNote: String {
+        guard settings.learnVocabulary else {
+            return "Only the dictionary primes the engine. Turn this on to also pick up the "
+                + "names and jargon that recur in what you've already dictated."
+        }
+
+        let learned = BiasVocabulary.shared.current().learned
+        guard !learned.isEmpty else {
+            return "Nothing learned yet — a name has to recur across "
+                + "\(VocabularyLearner.minimumRuns) separate dictations before it counts."
+        }
+
+        let examples = learned.prefix(3).map(\.phrase).joined(separator: ", ")
+        return "Priming the engine with \(learned.count) learned "
+            + (learned.count == 1 ? "term" : "terms")
+            + " alongside the dictionary: \(examples)"
+            + (learned.count > 3 ? "…" : "")
     }
 
     private func panel<Content: View>(

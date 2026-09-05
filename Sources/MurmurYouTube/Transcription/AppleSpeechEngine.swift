@@ -44,7 +44,8 @@ actor AppleSpeechEngine: TranscriptionEngine {
         let (inputStream, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
         self.inputContinuation = inputContinuation
 
-        // Bias the recognizer toward the dictionary's words before it hears anything. This
+        // Bias the recognizer toward the dictionary's words — and the recurring names the
+        // learner mined from past transcripts — before it hears anything. This
         // is a nudge, not a guarantee — `DictionaryCorrector` is the pass that actually
         // enforces spelling — but it's free and it catches things a post-hoc rewrite can't,
         // like a name the engine would otherwise split into two ordinary words.
@@ -136,12 +137,13 @@ actor AppleSpeechEngine: TranscriptionEngine {
     /// this runs on the engine's own executor — `MainActor.assumeIsolated` here doesn't check
     /// that claim, it asserts it, and takes the whole process down when it's false.
     private static func context() async -> AnalysisContext? {
-        let phrases = await MainActor.run { DictionaryStore.shared.biasPhrases }
-        guard !phrases.isEmpty else { return nil }
+        let selection = await MainActor.run { BiasVocabulary.shared.current() }
+        guard !selection.phrases.isEmpty else { return nil }
 
         let context = AnalysisContext()
-        context.contextualStrings[.general] = phrases
-        Log.speech.info("biasing with \(phrases.count, privacy: .public) dictionary phrase(s)")
+        context.contextualStrings[.general] = selection.phrases
+        let written = selection.phrases.count - selection.learned.count
+        Log.speech.info("biasing with \(written, privacy: .public) dictionary + \(selection.learned.count, privacy: .public) learned phrase(s)")
         return context
     }
 

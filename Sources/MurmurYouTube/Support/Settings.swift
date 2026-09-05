@@ -46,6 +46,12 @@ final class Settings {
         didSet { defaults.set(smartCleanup, forKey: Keys.smartCleanup) }
     }
 
+    /// Mine recurring names and jargon out of past transcripts and prime the engine with
+    /// them, alongside the hand-written dictionary. Off = dictionary only.
+    var learnVocabulary: Bool {
+        didSet { defaults.set(learnVocabulary, forKey: Keys.learnVocabulary) }
+    }
+
     /// Play a short tick when capture starts and stops.
     var soundEnabled: Bool {
         didSet { defaults.set(soundEnabled, forKey: Keys.soundEnabled) }
@@ -60,6 +66,7 @@ final class Settings {
         static let engine = "engine"
         static let smartCleanup = "smartCleanup"
         static let compareMode = "compareMode"
+        static let learnVocabulary = "learnVocabulary"
     }
 
     private init() {
@@ -71,5 +78,8 @@ final class Settings {
         smartCleanup = defaults.object(forKey: Keys.smartCleanup) as? Bool ?? false
         compareMode = defaults.object(forKey: Keys.compareMode) as? Bool ?? false
         soundEnabled = defaults.object(forKey: Keys.soundEnabled) as? Bool ?? true
+        // On by default: it only ever fills bias slots the dictionary left empty, and
+        // it costs nothing until there's enough history to clear the evidence threshold.
+        learnVocabulary = defaults.object(forKey: Keys.learnVocabulary) as? Bool ?? true
     }
 }
