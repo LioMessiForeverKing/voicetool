@@ -90,7 +90,10 @@ struct HUDView: View {
     /// unambiguous at a glance ambiguous.
     private var status: String {
         switch controller.state {
-        case .starting, .listening: "Rec"
+        // "Lock" is the difference between a recording that stops when you let go and one
+        // that doesn't. Without it a latched session is indistinguishable from a held one,
+        // and the mic stays open with no indication that it will.
+        case .starting, .listening: controller.isLatched ? "Lock" : "Rec"
         case .finishing: "Proc"
         case .error: "Fault"
         case .idle: "Rec"
