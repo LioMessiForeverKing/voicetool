@@ -10,7 +10,14 @@ import SwiftUI
 final class HUDPanel: NSPanel {
     init(controller: DictationController) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 76),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                // Same tokens `HUDView` frames itself with. Duplicating the numbers here
+                // is how the capsule ends up off-centre in its own window.
+                width: DS.Material.hudWidth,
+                height: DS.Material.hudHeight
+            ),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false

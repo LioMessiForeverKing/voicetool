@@ -160,6 +160,34 @@ enum DS {
         static let needleWidth: CGFloat = 1.5
         /// Where 0 VU sits along the scale, 0...1 — the red zone begins here.
         static let meterZeroPoint: Double = 0.72
+
+        // Glyphs. SF Symbols used as controls — the trash, the search lens, the clear
+        // cross. Sized here rather than at the call site so an icon can't drift a point
+        // away from the silkscreen label sitting next to it.
+        /// Inline arrows and marks inside a chip.
+        static let glyphHint: CGFloat = 7
+        /// The standard control glyph, matched to `Font.silkscreen`.
+        static let glyphControl: CGFloat = 9
+        /// A glyph leading a field, matched to `Font.caption`.
+        static let glyphField: CGFloat = 10
+
+        // The floating HUD. `HUDPanel` sizes its window from these too — the panel and its
+        // content have to agree exactly or the capsule sits off-centre in its own window.
+        static let hudWidth: CGFloat = 340
+        static let hudHeight: CGFloat = 76
+
+        // Segmented level bargraph — the HUD's meter.
+        //
+        // A bargraph rather than the main window's needle: at this size a needle has no
+        // room to swing, and a row of segments is what a portable deck actually used. It
+        // also earns its space, which the previous decorative ripple did not — segments
+        // are calibrated, so you can see that you're clipping.
+        static let bargraphSegments = 14
+        static let bargraphSegmentWidth: CGFloat = 3
+        static let bargraphSegmentHeight: CGFloat = 22
+        static let bargraphSegmentGap: CGFloat = 3
+        /// How long a peak segment stays lit after the level drops away from it.
+        static let bargraphPeakHold: TimeInterval = 0.9
     }
 
     // MARK: - Type

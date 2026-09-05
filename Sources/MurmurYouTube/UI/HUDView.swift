@@ -1,53 +1,100 @@
 import SwiftUI
 
-/// Brand palette. Deliberately minimal for the skeleton — this is the surface the real
-/// branding pass will replace.
-enum Brand {
-    static let accent = Color(red: 0.42, green: 0.55, blue: 1.0)
-    static let accentWarm = Color(red: 0.76, green: 0.47, blue: 1.0)
-
-    static var gradient: LinearGradient {
-        LinearGradient(
-            colors: [accent, accentWarm],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-}
-
+/// The floating readout that appears while you hold the key.
+///
+/// This is the surface the app is seen through: the main window is opened occasionally, but
+/// the HUD is in front of you on every single dictation. It is therefore held to the design
+/// system exactly like the front panel — a lit deck window with the record lamp on the left,
+/// a calibrated level bargraph beside it, and the transcript on the readout.
+///
+/// It replaced a translucent pill with a blue-to-purple gradient, which contradicted the
+/// brief on three separate counts: gradients are ruled out entirely, purple/pink gradients
+/// are named as the thing to avoid, and the rounded system face is the opposite of the
+/// silkscreen grotesque the rest of the app is set in.
+///
+/// Display-only by construction — `HUDPanel` sets `ignoresMouseEvents` and can never become
+/// key, because the moment it took focus the user's text field would lose it and
+/// `TextInjector` would have nothing to insert into. So there are no controls here.
 struct HUDView: View {
     @Bindable var controller: DictationController
 
     var body: some View {
-        HStack(spacing: 14) {
-            Waveform(level: controller.level, isActive: controller.state == .listening)
-                .frame(width: 76, height: 26)
+        HStack(spacing: DS.Space.base) {
+            VStack(spacing: DS.Space.tight) {
+                Lamp(color: DS.Color.record, isLit: isRecording)
+                Silkscreen(text: status, color: DS.Color.inkOnDeck.opacity(0.55))
+            }
+
+            LevelBargraph(level: controller.level, isActive: isMetering)
+                .frame(
+                    width: bargraphWidth,
+                    height: DS.Material.bargraphSegmentHeight
+                )
 
             Text(label)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(isError ? Color.red.opacity(0.9) : .primary.opacity(0.85))
+                .font(DS.Font.body)
+                .foregroundStyle(DS.Color.inkOnDeck.opacity(isError ? 0.7 : 1))
                 .lineLimit(2)
                 .truncationMode(.head)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.easeOut(duration: 0.12), value: controller.transcript)
+                .animation(DS.Motion.panel, value: controller.transcript)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(width: 340, height: 76)
+        .padding(.horizontal, DS.Space.roomy)
+        .padding(.vertical, DS.Space.base)
+        .frame(width: DS.Material.hudWidth, height: DS.Material.hudHeight)
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
+            // A deck window set into a brushed panel — the same construction as the main
+            // window's readout, so the HUD reads as a piece of the same unit.
+            RoundedRectangle(cornerRadius: DS.Radius.panel)
+                .fill(DS.Color.deck)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DS.Radius.panel)
+                        .strokeBorder(DS.Color.seam, lineWidth: DS.Border.hairline)
                 }
-                .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+                .shadow(
+                    color: DS.Shadow.window.color,
+                    radius: DS.Shadow.window.radius,
+                    x: DS.Shadow.window.x,
+                    y: DS.Shadow.window.y
+                )
         }
     }
+
+    private var bargraphWidth: CGFloat {
+        let count = CGFloat(DS.Material.bargraphSegments)
+        return count * DS.Material.bargraphSegmentWidth
+            + (count - 1) * DS.Material.bargraphSegmentGap
+    }
+
+    /// Lit from `.starting`, not from `.listening`. The lamp's job is to say the key is
+    /// down and audio is being taken; waiting for the engine to be ready would leave it
+    /// dark for the first moments of a recording that is already happening.
+    private var isRecording: Bool {
+        controller.state == .starting || controller.state == .listening
+    }
+
+    /// The bargraph, by contrast, follows `.listening` only — there is no signal to show
+    /// before capture starts, and a meter that moves without input is a lie.
+    private var isMetering: Bool { controller.state == .listening }
 
     private var isError: Bool {
         if case .error = controller.state { return true }
         return false
+    }
+
+    /// The lamp's own caption. Kept to one silkscreened word: this sits under a lamp on a
+    /// 76pt panel, and anything longer stops reading as equipment labelling.
+    ///
+    /// A fault says "Fault" rather than turning the text red. Red means recording here and
+    /// nowhere else — an error that borrowed it would make the one signal that has to be
+    /// unambiguous at a glance ambiguous.
+    private var status: String {
+        switch controller.state {
+        case .starting, .listening: "Rec"
+        case .finishing: "Proc"
+        case .error: "Fault"
+        case .idle: "Rec"
+        }
     }
 
     private var label: String {
@@ -63,41 +110,89 @@ struct HUDView: View {
     }
 }
 
-/// Level-reactive bars. Each bar gets a fixed phase offset so the group ripples rather
-/// than pumping in unison.
-private struct Waveform: View {
+/// A segmented level bargraph with peak hold.
+///
+/// Replaces a row of bars whose heights rode a sine wave: that rippled prettily and told you
+/// nothing, since the animation was there whether or not the signal was. Segments here are
+/// calibrated against `Material.meterZeroPoint`, so the colour change *is* the information —
+/// green is nominal, amber is approaching peak, red is over.
+///
+/// Peak hold exists because the failure it catches is invisible otherwise. Clipping is a
+/// transient; by the time you look down, an instantaneous meter has already fallen back and
+/// the recording is quietly ruined. The held segment stays lit long enough to be seen.
+private struct LevelBargraph: View {
     let level: Float
     let isActive: Bool
 
-    private static let barCount = 12
-    private static let phases: [Double] = (0..<barCount).map { index in
-        // Irrational multiplier keeps the offsets from lining up into a visible period.
-        (Double(index) * 0.618).truncatingRemainder(dividingBy: 1)
+    /// Peak state lives in a plain reference type, deliberately *not* in `@State` — the
+    /// same reason `VUMeter` keeps its needle physics in one. It has to advance once per
+    /// drawn frame, and driving that from `@State` means a mutation per tick during view
+    /// update, which SwiftUI treats as undefined behaviour and logs at frame rate. A
+    /// reference the view merely holds is invisible to the state graph.
+    @State private var hold = PeakHold()
+
+    private final class PeakHold {
+        var value: Double = 0
+        var setAt: Date = .distantPast
     }
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: 3) {
-                ForEach(0..<Self.barCount, id: \.self) { index in
-                    Capsule()
-                        .fill(Brand.gradient)
-                        .frame(width: 3, height: height(for: index, at: t))
+            let peak = advance(to: timeline.date)
+            HStack(spacing: DS.Material.bargraphSegmentGap) {
+                ForEach(0..<DS.Material.bargraphSegments, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: DS.Radius.chip)
+                        .fill(color(for: index, peak: peak))
+                        .frame(
+                            width: DS.Material.bargraphSegmentWidth,
+                            height: DS.Material.bargraphSegmentHeight
+                        )
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .accessibilityHidden(true)
     }
 
-    private func height(for index: Int, at time: TimeInterval) -> CGFloat {
-        let floorHeight: CGFloat = 3
-        guard isActive else { return floorHeight }
+    /// Where this segment sits on the scale, 0...1 at its top edge.
+    private func threshold(for index: Int) -> Double {
+        Double(index + 1) / Double(DS.Material.bargraphSegments)
+    }
 
-        let phase = Self.phases[index]
-        let wave = sin(time * 6.0 + phase * .pi * 2)
-        let amplitude = CGFloat(max(0.04, level))
-        // Wave rides on top of the level so bars still breathe during quiet passages.
-        let scaled = amplitude * (0.55 + 0.45 * CGFloat(wave))
-        return floorHeight + max(0, scaled) * 23
+    private func color(for index: Int, peak: Double) -> Color {
+        let point = threshold(for: index)
+        let isLit = isActive && Double(level) >= point
+        let isPeak = isActive && peak >= point && peak < point + segmentSpan
+
+        guard isLit || isPeak else {
+            // Unlit segments stay faintly visible — a dark lens, not an absence.
+            return zoneColor(at: point).opacity(DS.Material.lampUnlitOpacity)
+        }
+        return zoneColor(at: point)
+    }
+
+    private var segmentSpan: Double { 1 / Double(DS.Material.bargraphSegments) }
+
+    /// Green below 0 VU, amber approaching it, red over — the same calibration the needle
+    /// on the front panel uses, so the two instruments agree.
+    private func zoneColor(at point: Double) -> Color {
+        if point > DS.Material.meterZeroPoint + 0.14 { return DS.Color.meterRed }
+        if point > DS.Material.meterZeroPoint { return DS.Color.meterAmber }
+        return DS.Color.meterGreen
+    }
+
+    /// Steps the hold and returns the peak to draw this frame.
+    @discardableResult
+    private func advance(to now: Date) -> Double {
+        let current = Double(level)
+        if current >= hold.value {
+            hold.value = current
+            hold.setAt = now
+        } else if now.timeIntervalSince(hold.setAt) > DS.Material.bargraphPeakHold {
+            // Falls back to the signal rather than snapping to zero, so the marker slides
+            // down with the level instead of vanishing.
+            hold.value = current
+            hold.setAt = now
+        }
+        return hold.value
     }
 }
