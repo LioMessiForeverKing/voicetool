@@ -12,7 +12,7 @@ struct VocabularyLearnerTests {
     private var base: Date { Date(timeIntervalSince1970: 1_700_000_000) }
 
     private func runs(_ texts: [String]) -> [(text: String, date: Date)] {
-        texts.enumerated().map { (text: $1, date: base.addingTimeInterval(Double($0) * day)) }
+        texts.indices.map { (text: texts[$0], date: base.addingTimeInterval(Double($0) * day)) }
     }
 
     private func learn(

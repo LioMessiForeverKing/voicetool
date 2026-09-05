@@ -76,6 +76,16 @@ brew install swiftly && swiftly init --assume-yes
 PATH="$HOME/.swiftly/bin:$PATH" swift test --scratch-path "$HOME/Library/Caches/MurmurYouTubeBuild/swiftly-scratch"
 ```
 
+**A green local `swift test` can still fail CI, with `Symbol not found` at `dlopen`.** The
+package declares `.macOS(.v26)` but the workflow runs on `macos-15`, so the test bundle is
+*compiled* for macOS 26 and then *loaded* on macOS 15. Anything in `MurmurDictionary` that
+touches a runtime symbol newer than the runner's OS builds cleanly and dies on load. It has
+happened once already, to `EnumeratedSequence`'s `Collection` conformance — a Swift 6.2
+addition — reached via an innocent `.enumerated()`. Iterate with `indices` there instead.
+
+Locally this is invisible: your Mac *is* macOS 26, so the symbol resolves and the tests pass.
+Only CI can catch it. Keep the dictionary target's dependencies boring.
+
 Keep the scratch path separate from the one `make` uses: the two toolchains write
 incompatible module caches, and sharing a path makes every switch a full rebuild. Note that
 the newer toolchain also surfaces diagnostics the Command Line Tools compiler doesn't, so
