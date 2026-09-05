@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsWindow: View {
     @Bindable var controller: DictationController
     @State private var settings = Settings.shared
+    @State private var launchAtLogin = LaunchAtLogin.shared
 
     var body: some View {
         ZStack {
@@ -66,11 +67,26 @@ struct SettingsWindow: View {
                         + "corrections run either way.")
                 }
 
+                panel(label: "Startup") {
+                    Toggle(isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { launchAtLogin.setEnabled($0) }
+                    )) {
+                        Silkscreen(text: "Open at login")
+                    }
+                    .toggleStyle(.switch)
+                    // `problem` wins when set: an unexplained switch that won't stay on is
+                    // the failure this panel exists to make visible.
+                    note(launchAtLogin.problem
+                        ?? "Starts Murmur YouTube when you log in, so push to talk is armed "
+                        + "without opening the app first.")
+                }
+
                 Spacer()
             }
             .padding(DS.Space.panel)
         }
-        .frame(width: 520, height: 460)
+        .frame(width: 520, height: 560)
     }
 
     private func panel<Content: View>(
