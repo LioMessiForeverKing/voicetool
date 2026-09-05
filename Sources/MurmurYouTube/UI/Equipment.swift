@@ -201,7 +201,7 @@ struct TransportKey: View {
             HStack(spacing: DS.Space.tight) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: DS.Material.glyphField, weight: .bold))
                 }
                 Silkscreen(text: title, color: labelColor)
             }

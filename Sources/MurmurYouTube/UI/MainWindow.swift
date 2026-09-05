@@ -19,6 +19,11 @@ struct MainWindow: View {
 
         var id: String { rawValue }
         var title: String { self == .transcriptions ? "Transcriptions" : "Dictionary" }
+
+        /// ⌘1 / ⌘2. The sections are a row of keys rather than a tab bar, which looks
+        /// right but gives up the one affordance a tab bar has for free — so the shortcut
+        /// has to be put back deliberately.
+        var shortcut: KeyEquivalent { self == .transcriptions ? "1" : "2" }
     }
 
     var body: some View {
@@ -56,12 +61,15 @@ struct MainWindow: View {
                 ) {
                     withAnimation(DS.Motion.panel) { section = candidate }
                 }
+                .keyboardShortcut(candidate.shortcut, modifiers: .command)
                 .background {
                     if section == candidate {
                         RoundedRectangle(cornerRadius: DS.Radius.control)
                             .fill(DS.Color.selection)
                     }
                 }
+                .accessibilityLabel("\(candidate.title) section")
+                .accessibilityAddTraits(section == candidate ? [.isSelected] : [])
             }
             Spacer()
             Vents(count: 8)
@@ -109,6 +117,9 @@ private struct TransportPanel: View {
                 Silkscreen(text: "Level")
                 VUMeter(level: controller.level, isActive: isRecording)
                     .frame(width: 168, height: 54)
+                    .accessibilityElement()
+                    .accessibilityLabel("Input level")
+                    .accessibilityValue("\(Int((controller.level * 100).rounded())) percent")
             }
 
             VStack(alignment: .leading, spacing: DS.Space.tight) {
@@ -118,6 +129,9 @@ private struct TransportPanel: View {
                         .padding(.horizontal, DS.Space.base)
                         .padding(.vertical, DS.Space.snug)
                 }
+                .accessibilityElement()
+                .accessibilityLabel("Elapsed")
+                .accessibilityValue(counterText)
             }
 
             Spacer()
@@ -156,6 +170,7 @@ private struct TranscriptionList: View {
     @State private var store = RunStore.shared
     @State private var query = ""
     @State private var isConfirmingClear = false
+    @FocusState private var isSearchFocused: Bool
 
     private var runs: [DictationRun] {
         let all = store.runs.reversed().map { $0 }
@@ -166,12 +181,30 @@ private struct TranscriptionList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SearchField(text: $query, placeholder: "Search transcriptions")
+            SearchField(
+                text: $query,
+                placeholder: "Search transcriptions",
+                focus: $isSearchFocused
+            )
+
+            // ⌘F, hosted on a zero-size button because the field itself can't carry a
+            // shortcut. `.hidden` would remove it from the responder chain along with the
+            // shortcut, so it is sized to nothing instead.
+            Button("Find") { isSearchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
 
             if runs.isEmpty {
                 EmptyPanel(
                     label: store.runs.isEmpty ? "No recordings" : "No matches",
-                    detail: store.runs.isEmpty ? "Press Record to start." : "Try a different search."
+                    // Names the actual key rather than pointing at the Record button. Push
+                    // to talk is how the app is used; the button is the exception, and a
+                    // first run is exactly when that's worth saying.
+                    detail: store.runs.isEmpty
+                        ? "Hold \(Settings.shared.pushToTalkKey.displayName) anywhere and talk."
+                        : "Try a different search."
                 )
             } else {
                 ScrollView {
@@ -228,6 +261,7 @@ private struct TranscriptionRow: View {
 
     @State private var didCopy = false
     @State private var isHovering = false
+    @FocusState private var isDeleteFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.snug) {
@@ -241,7 +275,11 @@ private struct TranscriptionRow: View {
                     .foregroundStyle(DS.Color.inkOnDeck.opacity(0.5))
                 copyButton
                 deleteButton
-                    .opacity(isHovering ? 1 : 0)
+                    // Also shown while focused. Hover alone made this mouse-only: with
+                    // Full Keyboard Access the button was tabbable but invisible, so the
+                    // one destructive control on the row could be triggered without ever
+                    // being seen.
+                    .opacity(isHovering || isDeleteFocused ? 1 : 0)
             }
 
             Text(run.text)
@@ -261,12 +299,24 @@ private struct TranscriptionRow: View {
                 .opacity(isHovering ? 0.85 : 1)
         }
         .onHover { isHovering = $0 }
+        // Reaches the same two actions without depending on hover or on discovering the
+        // focus order.
+        .contextMenu {
+            Button("Copy") { copy() }
+            Button("Delete", role: .destructive, action: onDelete)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Transcription from \(run.engine)")
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(run.text, forType: .string)
     }
 
     private var copyButton: some View {
         Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(run.text, forType: .string)
+            copy()
             didCopy = true
             Task {
                 try? await Task.sleep(for: .seconds(1.4))
@@ -285,15 +335,16 @@ private struct TranscriptionRow: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(didCopy ? "Copied" : "Copy transcription")
     }
 
-    /// Appears on hover only, and deletes without a confirmation — a single transcript is
+    /// Appears on hover or focus, and deletes without a confirmation — a single transcript is
     /// cheap to redo, and a dialog on every row would make tidying up tedious. The
     /// irreversible one is "Delete all", which does confirm.
     private var deleteButton: some View {
         Button(action: onDelete) {
             Image(systemName: "trash")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: DS.Material.glyphControl, weight: .semibold))
                 .foregroundStyle(DS.Color.inkOnDeck.opacity(0.55))
                 .padding(.horizontal, DS.Space.snug)
                 .padding(.vertical, DS.Space.tight)
@@ -303,7 +354,9 @@ private struct TranscriptionRow: View {
                 )
         }
         .buttonStyle(.plain)
+        .focused($isDeleteFocused)
         .help("Delete this transcription")
+        .accessibilityLabel("Delete this transcription")
     }
 }
 
@@ -321,7 +374,7 @@ private struct CorrectionBadges: View {
                         .strikethrough()
                         .foregroundStyle(DS.Color.inkOnDeck.opacity(0.5))
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 7, weight: .bold))
+                        .font(.system(size: DS.Material.glyphHint, weight: .bold))
                         .foregroundStyle(DS.Color.inkOnDeck.opacity(0.4))
                     Text(correction.to)
                         .foregroundStyle(DS.Color.inkOnDeck)
@@ -348,22 +401,24 @@ private struct CorrectionBadges: View {
 struct SearchField: View {
     @Binding var text: String
     let placeholder: String
+    /// Optional so the dictionary's field, which nothing drives remotely, needn't invent
+    /// a `FocusState` it doesn't use.
+    var focus: FocusState<Bool>.Binding?
 
     var body: some View {
         HStack(spacing: DS.Space.snug) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: DS.Material.glyphField, weight: .semibold))
                 .foregroundStyle(DS.Color.inkOnDeck.opacity(0.5))
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(DS.Font.body)
-                .foregroundStyle(DS.Color.inkOnDeck)
+                .accessibilityHidden(true)
+            field
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(DS.Color.inkOnDeck.opacity(0.4))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, DS.Space.base)
@@ -371,6 +426,24 @@ struct SearchField: View {
         .background(DS.Color.deck)
         .overlay(alignment: .bottom) {
             Rectangle().fill(DS.Color.seam).frame(height: DS.Border.seam)
+        }
+    }
+}
+
+private extension SearchField {
+    /// `.focused` needs a real binding, so the two cases are separate branches rather than
+    /// a conditional modifier.
+    @ViewBuilder var field: some View {
+        let base = TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(DS.Font.body)
+            .foregroundStyle(DS.Color.inkOnDeck)
+            .accessibilityLabel(placeholder)
+
+        if let focus {
+            base.focused(focus)
+        } else {
+            base
         }
     }
 }
