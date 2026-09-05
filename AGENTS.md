@@ -145,6 +145,26 @@ tccutil reset Accessibility ai.pivotstudio.murmur-youtube
 A bare `tccutil reset Accessibility` wipes every app on the machine. Then quit System
 Settings entirely (⌘Q) before reopening; the Privacy pane caches its list.
 
+**No Developer ID? Make a local one.** The `Makefile` prefers a Developer ID, then falls
+back to a self-signed certificate named **Murmur Local Signing**, then to ad-hoc. Only the
+last is a problem: TCC needs the identity to be *stable*, not to be trusted by anyone else,
+so a self-signed cert keeps the Accessibility grant across rebuilds just as well — it simply
+isn't valid on any other Mac. Create one once, in **Keychain Access ▸ Certificate Assistant
+▸ Create a Certificate**:
+
+| Field | Value |
+|---|---|
+| Name | `Murmur Local Signing` |
+| Identity Type | Self Signed Root |
+| Certificate Type | **Code Signing** |
+| Let me override defaults | unchecked |
+
+It has to be created through the GUI: the trust settings that make `codesign` accept it are
+written to the user's keychain and macOS requires an interactive authorisation for that, so
+there is no `security` incantation that does the whole job unattended. Confirm it took with
+`security find-identity -v -p codesigning`, then `make install` and re-grant Accessibility
+one final time.
+
 **`log` may be shadowed in the user's shell.** Use `/usr/bin/log` explicitly.
 
 **Don't run the `.app` from the repo folder.** It's iCloud-synced and the sync engine can

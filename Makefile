@@ -23,11 +23,26 @@ BUNDLE   := $(STAGE)/$(APPNAME)
 CONTENTS := $(BUNDLE)/Contents
 
 ## TCC keys the Accessibility grant to the code signature, so an ad-hoc signature — which
-## changes on every build — makes the user re-grant after every `make`. Signing with a
-## stable Developer ID keeps the identity constant and the grant sticky. Falls back to
-## ad-hoc ("-") on a machine without the cert.
+## changes on every build — makes the user re-grant after every `make`.
+##
+## Three tiers, best first. What TCC actually cares about is that the signing identity is
+## *stable*, not that it's trusted by anyone else, which is why tier 2 is worth having on a
+## machine with no paid developer account:
+##
+##   1. Developer ID       — stable, and valid on other people's Macs too.
+##   2. $(LOCAL_SIGN_ID)   — self-signed, stable, trusted only here. Enough to keep the
+##                           Accessibility grant across rebuilds. See AGENTS.md to create it.
+##   3. Ad-hoc ("-")       — changes every build. The grant is lost on every rebuild, and the
+##                           symptom lies: the toggle still shows as on while the app is
+##                           untrusted.
+LOCAL_SIGN_ID := Murmur Local Signing
+
 SIGN_ID := $(shell security find-identity -v -p codesigning 2>/dev/null \
              | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)".*/\1/')
+ifeq ($(strip $(SIGN_ID)),)
+SIGN_ID := $(shell security find-identity -v -p codesigning 2>/dev/null \
+             | grep "$(LOCAL_SIGN_ID)" | head -1 | sed -E 's/.*"(.*)".*/\1/')
+endif
 ifeq ($(strip $(SIGN_ID)),)
 SIGN_ID := -
 endif
