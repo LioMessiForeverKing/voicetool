@@ -77,7 +77,7 @@ Xcode or install a swift.org toolchain, which bundles swift-testing:
 
 ```bash
 brew install swiftly && swiftly init --assume-yes
-PATH="$HOME/.swiftly/bin:$PATH" swift test --scratch-path "$HOME/Library/Caches/MurmurYouTubeBuild/swiftly-scratch"
+PATH="$HOME/.swiftly/bin:$PATH" swift test --scratch-path "$HOME/Library/Caches/MurmurBuild/swiftly-scratch"
 ```
 
 **A green local `swift test` can still fail CI, with `Symbol not found` at `dlopen`.** The
@@ -116,7 +116,7 @@ invisible to SwiftUI's state graph. Don't "clean that up" into `@State`.
 
 ## Design system
 
-`Sources/MurmurYouTube/UI/DesignSystem.swift` defines every colour, size, radius, duration
+`Sources/Murmur/UI/DesignSystem.swift` defines every colour, size, radius, duration
 and material token. **Views must not contain literal values.** If a component needs a number
 that isn't a token, add the token rather than inlining it.
 
@@ -143,7 +143,7 @@ shows as **on** while the app is untrusted. The `Makefile` auto-detects a Develo
 If a grant does get wedged, reset that one row — never toggle, and never omit the bundle ID:
 
 ```bash
-tccutil reset Accessibility ai.pivotstudio.murmur-youtube
+tccutil reset Accessibility ai.pivotstudio.murmur
 ```
 
 A bare `tccutil reset Accessibility` wipes every app on the machine. Then quit System
