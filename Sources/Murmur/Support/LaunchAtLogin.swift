@@ -68,7 +68,7 @@ final class LaunchAtLogin {
         case .enabled:
             return nil
         case .requiresApproval:
-            return "Approve Murmur YouTube in System Settings ▸ General ▸ Login Items."
+            return "Approve Murmur in System Settings ▸ General ▸ Login Items."
         case .notFound:
             // Registration resolves the *running* bundle, and macOS won't accept one from
             // a transient location. `make install` puts it in /Applications; a copy run

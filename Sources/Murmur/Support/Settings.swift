@@ -78,6 +78,7 @@ final class Settings {
     }
 
     private init() {
+        LegacyMigration.runIfNeeded()
         // Key reused from the three-preset version, and `Hotkey(storageValue:)` still
         // parses what that wrote ("fn", "rightOption"), so an existing choice survives the
         // upgrade instead of silently reverting.

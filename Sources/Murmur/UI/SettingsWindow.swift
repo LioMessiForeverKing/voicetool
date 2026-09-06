@@ -91,7 +91,7 @@ struct SettingsWindow: View {
                     // `problem` wins when set: an unexplained switch that won't stay on is
                     // the failure this panel exists to make visible.
                     note(launchAtLogin.problem
-                        ?? "Starts Murmur YouTube when you log in, so push to talk is armed "
+                        ?? "Starts Murmur when you log in, so push to talk is armed "
                         + "without opening the app first.")
                 }
 

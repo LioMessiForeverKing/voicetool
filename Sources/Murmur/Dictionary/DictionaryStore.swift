@@ -36,8 +36,9 @@ final class DictionaryStore {
     private var isSaving = false
 
     static var fileURL: URL {
+        LegacyMigration.runIfNeeded()
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("MurmurYouTube", isDirectory: true)
+            .appendingPathComponent("Murmur", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("dictionary.txt")
     }
@@ -134,7 +135,7 @@ final class DictionaryStore {
     }
 
     private static let header = """
-        # Murmur YouTube dictionary
+        # Murmur dictionary
         #
         #   Anthropic                 a term — the engine is told this word exists
         #   cloud code -> Claude Code a correction — when you hear X, write Y
