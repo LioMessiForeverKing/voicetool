@@ -96,7 +96,7 @@ final class DictationController {
     /// - Returns: `false` if the hotkey tap couldn't be installed (missing Accessibility).
     @discardableResult
     func activate() -> Bool {
-        hotkey.key = Settings.shared.pushToTalkKey
+        hotkey.hotkey = Settings.shared.hotkey
         gesture.isLatchEnabled = Settings.shared.latchEnabled
         gesture.reset()
         hotkey.onPress = { [weak self] in self?.apply(self?.gesture.press() ?? .none) }

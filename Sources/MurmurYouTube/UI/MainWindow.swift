@@ -203,7 +203,7 @@ private struct TranscriptionList: View {
                     // to talk is how the app is used; the button is the exception, and a
                     // first run is exactly when that's worth saying.
                     detail: store.runs.isEmpty
-                        ? "Hold \(Settings.shared.pushToTalkKey.displayName) anywhere and talk."
+                        ? "Hold \(Settings.shared.hotkey.displayName) anywhere and talk."
                         : "Try a different search."
                 )
             } else {

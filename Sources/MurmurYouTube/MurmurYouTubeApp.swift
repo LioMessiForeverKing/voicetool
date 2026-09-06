@@ -1,3 +1,4 @@
+import MurmurInput
 import AppKit
 import SwiftUI
 
@@ -89,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         observeState()
-        Log.app.info("Murmur YouTube ready — hold \(Settings.shared.pushToTalkKey.displayName) to dictate")
+        Log.app.info("Murmur YouTube ready — hold \(Settings.shared.hotkey.displayName, privacy: .public) to dictate")
     }
 
     /// `murmuryt://clear` and `murmuryt://show`, used by the legacy HTML dashboard and
@@ -180,19 +181,25 @@ private struct MenuContent: View {
     }
 
     var body: some View {
-        Text("Hold \(settings.pushToTalkKey.displayName) to dictate")
+        Text("Hold \(settings.hotkey.displayName) to dictate")
 
         Divider()
 
+        // Presets only. A chord has to be *recorded*, which needs a window that can take key
+        // events — a menu can't, and an item that silently did nothing would be worse than
+        // not offering it. Settings owns that.
         Picker("Push-to-talk key", selection: Binding(
-            get: { settings.pushToTalkKey },
+            get: { settings.hotkey },
             set: { key in
-                settings.pushToTalkKey = key
+                settings.hotkey = key
                 controller.reloadHotkey()
             }
         )) {
-            ForEach(PushToTalkKey.allCases, id: \.self) { key in
-                Text(key.displayName).tag(key)
+            ForEach(Hotkey.presets, id: \.self) { preset in
+                Text(preset.displayName).tag(preset)
+            }
+            if !Hotkey.presets.contains(settings.hotkey) {
+                Text(settings.hotkey.displayName).tag(settings.hotkey)
             }
         }
 

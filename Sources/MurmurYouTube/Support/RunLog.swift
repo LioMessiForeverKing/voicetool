@@ -122,7 +122,7 @@ enum RunLog {
         try? DashboardHTML.render(
             runs: runs,
             compareMode: Settings.shared.compareMode,
-            key: Settings.shared.pushToTalkKey.displayName
+            key: Settings.shared.hotkey.displayName
         ).write(to: dashboardURL, atomically: true, encoding: .utf8)
     }
 
