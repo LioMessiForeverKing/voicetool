@@ -3,13 +3,19 @@ name: macOS
 # Runs the shared dictionary contract against the Swift implementation. The Windows
 # workflow runs the identical vectors against the C# one. Both must be green for the two
 # implementations to be considered in agreement — that pairing is the whole point.
+#
+# It also runs the design token parity test, which reads the C# palette. That is why the
+# Windows design folder is in the path filter: a colour changed on the Windows side alone
+# has to trigger this workflow, or the one edit the test exists to catch would skip it.
 
 on:
   push:
     branches: [main]
-    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.swift', '.github/workflows/macos.yml']
+    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.swift',
+             'windows/src/Murmur.App/Design/**', '.github/workflows/macos.yml']
   pull_request:
-    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.swift', '.github/workflows/macos.yml']
+    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.swift',
+             'windows/src/Murmur.App/Design/**', '.github/workflows/macos.yml']
   workflow_dispatch:
 
 permissions:
