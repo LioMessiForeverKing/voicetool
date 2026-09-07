@@ -83,13 +83,11 @@ public sealed class WasapiAudioCapture : IAudioCapture
     {
         using var enumerator = new MMDeviceEnumerator();
         var device = _deviceId is null
-            // Communications, not Console: this follows the device the user chose as their
-            // default *communication* device, which is what headset users expect.
+            // Communications, not Console: the device headset users expect. See AGENTS.md.
             ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications)
             : enumerator.GetDevice(_deviceId);
 
-        // Bounded and drop-oldest so a slow consumer can never block the capture thread.
-        // Losing the oldest audio is bad; stalling the audio engine is worse.
+        // Bounded and drop-oldest: stalling the audio engine is worse than losing the oldest audio.
         _channel = Channel.CreateBounded<float[]>(new BoundedChannelOptions(512)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -139,10 +137,8 @@ public sealed class WasapiAudioCapture : IAudioCapture
     /// <summary>Formats to try, best first.</summary>
     private static IEnumerable<WaveFormat> Formats(MMDevice device)
     {
-        // Exactly what the model wants — the OS resamples for us if it accepts this.
         yield return WaveFormat.CreateIeeeFloatWaveFormat(AudioChunk.SampleRate, 1);
 
-        // Right rate and channel count, integer samples. Cheap to convert.
         yield return new WaveFormat(AudioChunk.SampleRate, 16, 1);
 
         // Whatever the engine is already running at; we convert in managed code.
@@ -167,8 +163,7 @@ public sealed class WasapiAudioCapture : IAudioCapture
             provider = new DownmixSampleProvider(provider);
         }
 
-        // WDL, not MediaFoundationResampler: pure managed, so no COM apartment concerns and
-        // nothing extra to extract from a single-file bundle.
+        // WDL, not MediaFoundationResampler: pure managed, so no COM apartment or bundle concerns.
         _pipeline = new WdlResamplingSampleProvider(provider, AudioChunk.SampleRate);
         _pullBuffer = new float[AudioChunk.SampleRate / 10];
     }
@@ -195,10 +190,10 @@ public sealed class WasapiAudioCapture : IAudioCapture
             return;
         }
 
-        _rawSink!.AddSamples(e.Buffer, 0, e.BytesRecorded);   // AddSamples copies internally
+        // AddSamples copies internally, so the caller's buffer needs no defensive copy.
+        _rawSink!.AddSamples(e.Buffer, 0, e.BytesRecorded);
 
-        // Drain until the resampler starves. A zero read means "no more buffered input right
-        // now" — it is not end-of-stream and not an error.
+        // A zero read means no buffered input right now, not end-of-stream and not an error.
         while (true)
         {
             var read = _pipeline!.Read(_pullBuffer, 0, _pullBuffer.Length);
@@ -213,7 +208,7 @@ public sealed class WasapiAudioCapture : IAudioCapture
     private void Publish(float[] samples)
     {
         DetectBlockedMicrophone(samples);
-        _channel?.Writer.TryWrite(samples);   // TryWrite never blocks
+        _channel?.Writer.TryWrite(samples);
     }
 
     private void DetectBlockedMicrophone(float[] samples)
@@ -224,16 +219,14 @@ public sealed class WasapiAudioCapture : IAudioCapture
             if (sample != 0f) { allZero = false; break; }
         }
 
-        // ~1.5s of exactly-zero samples. A live microphone always has a noise floor, so this
-        // means the OS is feeding us silence rather than the room being quiet.
+        // ~1.5s of exact zeros. A live microphone always has a noise floor, so this is OS silence.
         _consecutiveSilentChunks = allZero ? _consecutiveSilentChunks + 1 : 0;
         if (_consecutiveSilentChunks > 1500 / BufferMilliseconds) LooksLikeBlockedMicrophone = true;
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
-        // A non-null exception here is usually AUDCLNT_E_DEVICE_INVALIDATED — the device was
-        // unplugged or reconfigured mid-capture.
+        // Usually AUDCLNT_E_DEVICE_INVALIDATED: unplugged or reconfigured mid-capture.
         _channel?.Writer.TryComplete(e.Exception);
         IsCapturing = false;
     }
@@ -244,7 +237,14 @@ public sealed class WasapiAudioCapture : IAudioCapture
 
         _capture.DataAvailable -= OnDataAvailable;
         _capture.RecordingStopped -= OnRecordingStopped;
-        try { _capture.StopRecording(); } catch (COMException) { /* already gone */ }
+        try
+        {
+            _capture.StopRecording();
+        }
+        catch (COMException)
+        {
+            // Already stopped.
+        }
         _capture.Dispose();
         _capture = null;
 

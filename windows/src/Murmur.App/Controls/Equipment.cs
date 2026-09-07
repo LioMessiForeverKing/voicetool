@@ -252,10 +252,7 @@ public sealed class TransportKey : Button
     {
         base.OnPropertyChanged(change);
 
-        // Foreground is updated HERE, not in Render. Assigning a property during the render
-        // pass invalidates the visual mid-pass, and Avalonia throws "Visual was invalidated
-        // during the render pass" rather than merely logging it. Render must be a pure
-        // function of current state.
+        // Assigned here, not in Render: Avalonia throws if a property changes mid-pass. See AGENTS.md.
         if (change.Property == IsEngagedProperty || change.Property == EngagedColorProperty)
         {
             Foreground = new SolidColorBrush(IsEngaged ? EngagedColor : Tokens.Colors.Ink);

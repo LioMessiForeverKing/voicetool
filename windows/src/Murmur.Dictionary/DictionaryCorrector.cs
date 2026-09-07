@@ -48,14 +48,7 @@ public sealed class DictionaryCorrector
     /// <param name="entries">The dictionary. Terms and disabled entries are ignored here.</param>
     public DictionaryCorrector(IEnumerable<DictionaryEntry> entries)
     {
-        // Longest trigger first. Sorting by the trigger's length is what makes "Claude Code"
-        // win over "Claude" — once the longer rule has rewritten the span, the shorter one no
-        // longer sees the text it would have matched.
-        //
-        // OrderByDescending is a *stable* sort in LINQ, so equal-length triggers keep their
-        // file order on both platforms. Swift's sort is not stable, but ties can only occur
-        // between triggers of identical length, which cannot overlap the same span twice —
-        // so the observable result is the same either way.
+        // Longest trigger first; the stable sort keeps parity with Swift. See AGENTS.md.
         _rules = entries
             .Where(e => e.IsEnabled && e.Kind == EntryKind.Correction)
             .Where(e => !string.IsNullOrWhiteSpace(e.Hear))
@@ -75,10 +68,7 @@ public sealed class DictionaryCorrector
     {
         if (_rules.Count == 0 || string.IsNullOrEmpty(text)) return (text, []);
 
-        // Normalize to NFC before matching, exactly as the Swift side does. Decomposed and
-        // composed forms of the same accented word are different sequences of code points —
-        // "café" is 4 or 5 depending on form — so an accented trigger silently never fires
-        // unless both sides agree. This is part of the shared contract, not an optimisation.
+        // NFC before matching, exactly as the Swift side does. See AGENTS.md.
         var result = text.Normalize(NormalizationForm.FormC);
         var applied = new List<AppliedCorrection>();
 
@@ -87,15 +77,9 @@ public sealed class DictionaryCorrector
             var matches = rule.Regex.Matches(result);
             if (matches.Count == 0) continue;
 
-            // Record what the engine actually produced, not the rule's trigger — seeing the
-            // real mishearing is the point, and it can differ in case or spacing
-            // ("CloudCode" matched by "cloud code").
             var heard = matches[0].Value;
 
-            // MatchEvaluator rather than a replacement string: it makes the replacement
-            // strictly literal. A plain Replace would treat "$1", "$&" and friends in the
-            // user's own text as substitutions, which is a real hazard when the replacement
-            // is arbitrary user input.
+            // MatchEvaluator keeps the replacement literal. See AGENTS.md.
             result = rule.Regex.Replace(result, _ => rule.Replacement);
 
             applied.Add(new AppliedCorrection(heard, rule.Replacement, matches.Count));
@@ -119,8 +103,6 @@ public sealed class DictionaryCorrector
     /// </remarks>
     private static Rule? MakeRule(string trigger, string replacement)
     {
-        // NFC here too, matching Apply(): a trigger typed into the UI and one read back from
-        // the dictionary file can arrive in different normal forms.
         var parts = trigger
             .Normalize(NormalizationForm.FormC)
             .Trim()
@@ -144,7 +126,6 @@ public sealed class DictionaryCorrector
         }
     }
 
-    // ---- Engine biasing ----
 
     /// <summary>
     /// How many phrases to hand the speech engine as context.

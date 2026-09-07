@@ -273,6 +273,33 @@ Win32 call into a build error.
 are strict on purpose. `--no-incremental` is mandatory: Roslyn does not re-emit analyzer
 warnings on a cached build, so without it the gate proves nothing.
 
+**A `WH_KEYBOARD_LL` hook must always chain, and must never throw.** Microsoft is explicit that
+failing to chain leaves other applications' hooks without notifications. An exception escaping
+into the hook chain takes the process down from a thread with no useful context, so the callback
+swallows and chains regardless.
+
+**A global hook needs a message pump.** The system delivers hook callbacks by *sending a message*
+to the installing thread, so without a pump the hook is installed and never invoked. The pump
+deliberately skips `TranslateMessage`/`DispatchMessage`: the thread owns no windows and cares only
+about the `WM_QUIT` that ends it. Stay ahead of the 1000 ms timeout that silently removes a slow
+hook.
+
+**Audio uses the Communications device role, not Console.** It follows the device the user chose
+as their default *communication* device, which is what headset users expect. The capture channel
+is bounded and drop-oldest on purpose: losing the oldest audio is bad, stalling the audio engine
+is worse.
+
+**Avalonia throws if you assign a property during the render pass.** Not a log line, an exception:
+"Visual was invalidated during the render pass." `Equipment.cs` updates `Foreground` outside
+`Render` for this reason. Render must stay a pure function of current state.
+
+**The dictionary replacement must stay literal.** The C# side uses a `MatchEvaluator` rather than a
+replacement string, because a plain `Replace` treats `$1` and `$&` appearing in *the user's own
+text* as substitutions, and that text is arbitrary input. Triggers are sorted longest-first;
+LINQ's `OrderByDescending` is stable while Swift's sort is not, but ties can only occur between
+triggers of identical length, which cannot overlap the same span twice, so both platforms observe
+the same result.
+
 ---
 
 ## Regex, if you touch the dictionary

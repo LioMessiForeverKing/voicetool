@@ -11,7 +11,8 @@ enum Metrics {
         let stripped = text.lowercased().unicodeScalars.map { scalar -> Character in
             if CharacterSet.alphanumerics.contains(scalar) { return Character(scalar) }
             if CharacterSet.whitespacesAndNewlines.contains(scalar) { return " " }
-            if scalar == "'" { return "'" }   // keep contractions intact
+            // Apostrophes survive, so contractions stay one word.
+            if scalar == "'" { return "'" }
             return " "
         }
         return String(stripped)
@@ -47,11 +48,10 @@ enum Metrics {
             current[0] = i
             for j in 1...b.count {
                 let cost = a[i - 1] == b[j - 1] ? 0 : 1
-                current[j] = min(
-                    previous[j] + 1,      // deletion
-                    current[j - 1] + 1,   // insertion
-                    previous[j - 1] + cost // substitution
-                )
+                let deletion = previous[j] + 1
+                let insertion = current[j - 1] + 1
+                let substitution = previous[j - 1] + cost
+                current[j] = min(deletion, insertion, substitution)
             }
             swap(&previous, &current)
         }

@@ -31,8 +31,7 @@ enum AppleEngine {
         let locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current)
             ?? Locale(identifier: "en-US")
 
-        // `.transcription` rather than a volatile preset: we want the committed result, and
-        // partial revisions would only add work that Parakeet's batch path never does.
+        // `.transcription`, not a volatile preset: the committed result is what Parakeet compares to.
         let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
 
         let installed = await SpeechTranscriber.installedLocales
@@ -84,16 +83,14 @@ enum ParakeetEngine {
     ) async throws -> EngineRun {
         let loadStart = Date()
 
-        // First call downloads ~1.1 GB of CoreML packages from the FluidInference HF repo
-        // into ~/Library/Application Support/FluidAudio/Models/; later runs load from disk.
+        // First call downloads ~1.1 GB of CoreML packages; later runs load from disk.
         let models = try await AsrModels.downloadAndLoad(
             version: version,
             encoderPrecision: precision
         )
         let manager = AsrManager(config: .default)
         try await manager.loadModels(models)
-        // Allocated before the timer starts — this is setup, and charging it to transcription
-        // would flatter Apple's side, whose equivalent allocation happens inside `prepareToAnalyze`.
+        // Allocated before the timer starts: setup, not transcription.
         var decoderState = try TdtDecoderState()
         let loadSeconds = Date().timeIntervalSince(loadStart)
 

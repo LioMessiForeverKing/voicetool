@@ -120,8 +120,7 @@ public sealed class SendInputTextInjector : ITextInjector
     {
         if (string.IsNullOrEmpty(text)) return true;
 
-        // Newlines sent as Unicode packets do not reliably produce a new line — many controls
-        // want a real VK_RETURN. Long text goes to the clipboard anyway, which handles them.
+        // Newlines as Unicode packets are unreliable; long text takes the clipboard path anyway.
         var hasNewlines = text.Contains('\n', StringComparison.Ordinal);
 
         if (text.Length <= PasteThreshold && !hasNewlines)
@@ -237,7 +236,7 @@ public sealed class SendInputTextInjector : ITextInjector
         {
             Keyboard = new KEYBDINPUT
             {
-                VirtualKey = 0,   // must be 0 for KEYEVENTF_UNICODE
+                VirtualKey = 0,
                 ScanCode = codeUnit,
                 Flags = KEYEVENTF_UNICODE | (up ? KEYEVENTF_KEYUP : 0),
                 Time = 0,
@@ -270,8 +269,8 @@ public sealed class SendInputTextInjector : ITextInjector
     }
 
     private static bool IsExtendedKey(int virtualKey) => virtualKey is
-        0xA3 or 0xA5 or 0x5B or 0x5C or   // right ctrl/alt, both Windows keys
-        0x2D or 0x2E or 0x24 or 0x23 or   // insert, delete, home, end
-        0x21 or 0x22 or                   // page up/down
-        0x25 or 0x26 or 0x27 or 0x28;     // arrows
+        0xA3 or 0xA5 or 0x5B or 0x5C or
+        0x2D or 0x2E or 0x24 or 0x23 or
+        0x21 or 0x22 or
+        0x25 or 0x26 or 0x27 or 0x28;
 }
