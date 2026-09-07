@@ -64,11 +64,7 @@ public struct DictionaryCorrector: Sendable {
     public func apply(to text: String) -> (text: String, applied: [AppliedCorrection]) {
         guard !rules.isEmpty, !text.isEmpty else { return (text, []) }
 
-        // Normalize to NFC before matching. macOS hands back decomposed (NFC vs NFD) strings
-        // in several places — a filesystem read of the dictionary being the obvious one — and
-        // "café" decomposed is five scalars where composed is four. The pattern and the text
-        // must be in the same form or an accented trigger silently never matches. The Windows
-        // implementation normalizes identically; this is part of the shared contract.
+        // NFC on both sides, or an accented trigger silently never matches. See AGENTS.md.
         var result = text.precomposedStringWithCanonicalMapping
         var applied: [AppliedCorrection] = []
 

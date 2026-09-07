@@ -35,15 +35,8 @@ enum WisprReader {
     static func result(after holdStarted: Date, timeout: TimeInterval) async -> ComparisonResult? {
         guard isInstalled else { return nil }
 
-        // Wispr stamps a row with the START of the utterance, not the end — and the two
-        // hotkeys are never pressed on the same millisecond, so its row is routinely stamped
-        // slightly *before* our hold began. Searching forward from the hold start therefore
-        // skipped the matching row every time.
-        //
-        // The window is bounded on both sides rather than just widened backwards: Wispr
-        // creates the row (with null text) when the utterance starts and fills the text in
-        // afterwards, so an open-ended search would happily return the *previous*
-        // dictation's row on the first poll and report it as this one's result.
+        // Wispr stamps the start of the utterance, so the window is bounded both
+        // sides. See AGENTS.md.
         let lower = utcStamp(holdStarted.addingTimeInterval(-Self.startStampGrace))
         let upper = utcStamp(holdStarted.addingTimeInterval(Self.startStampGrace))
         let deadline = Date().addingTimeInterval(timeout)

@@ -275,10 +275,8 @@ private struct TranscriptionRow: View {
                     .foregroundStyle(DS.Color.inkOnDeck.opacity(0.5))
                 copyButton
                 deleteButton
-                    // Also shown while focused. Hover alone made this mouse-only: with
-                    // Full Keyboard Access the button was tabbable but invisible, so the
-                    // one destructive control on the row could be triggered without ever
-                    // being seen.
+                    // Also shown while focused: hover alone left the one destructive
+                    // control tabbable but invisible under Full Keyboard Access.
                     .opacity(isHovering || isDeleteFocused ? 1 : 0)
             }
 

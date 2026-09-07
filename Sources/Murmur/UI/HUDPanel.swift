@@ -13,8 +13,7 @@ final class HUDPanel: NSPanel {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                // Same tokens `HUDView` frames itself with. Duplicating the numbers here
-                // is how the capsule ends up off-centre in its own window.
+                // Same tokens HUDView frames itself with. See AGENTS.md.
                 width: DS.Material.hudWidth,
                 height: DS.Material.hudHeight
             ),

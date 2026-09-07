@@ -81,11 +81,7 @@ enum TextInjector {
             return .unverified("selection range unreadable after write")
         }
 
-        // Deliberately a *movement* check, not an exact-length check. Falling back after a
-        // write that actually landed would paste the text a second time, and a duplicated
-        // paragraph is far worse than a missing one. Some apps normalize newlines or run
-        // autocorrect, so the caret can legitimately advance by something other than the
-        // UTF-16 count — only a completely unmoved selection proves nothing happened.
+        // A movement check, not a length check. See AGENTS.md.
         let unchanged = after.location == before.location && after.length == before.length
         guard !unchanged else {
             return .unverified("selection unmoved at \(before.location)")

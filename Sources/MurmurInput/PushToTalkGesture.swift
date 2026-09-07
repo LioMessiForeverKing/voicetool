@@ -102,7 +102,6 @@ public final class PushToTalkGesture {
             return .armTapTimer
 
         case .latched:
-            // The release that follows the latching tap, and every release after it.
             return .none
 
         case .idle, .awaitingSecondTap:

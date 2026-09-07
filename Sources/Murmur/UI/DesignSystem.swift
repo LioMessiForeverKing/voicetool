@@ -46,7 +46,7 @@ enum DS {
         /// The hard line where two panels meet. Always the darkest value available.
         static let seam = face(light: 0x6B6862, dark: 0x000000)
 
-        // Text
+        // MARK: Text
         /// Primary readable text.
         static let ink = face(light: 0x1C1A17, dark: 0xE4DED0)
         /// Supporting text — timings, counts, secondary rows.
@@ -57,15 +57,14 @@ enum DS {
         /// Text on a dark readout well, regardless of face.
         static let inkOnDeck = swatch(0xD8D2C4)
 
-        // Accent — the only red in the app
+        // MARK: Accent — the only red in the app
         /// The record lamp. Lacquered, not fluorescent.
         static let record = swatch(0xC8342A)
         /// The lamp when unlit — a dark lens, not an absence.
         static let recordIdle = face(light: 0x7A4A45, dark: 0x4A2724)
 
-        // Selection and focus. Deliberately not red: on real equipment red means one thing,
-        // and it needs to stay readable at a glance as "this is recording". Selection is
-        // carried by a lit panel plus a warm edge instead of by hue.
+        // MARK: Selection and focus
+        // Not red: red already means recording, and has to stay readable at a glance.
         /// A selected row — the panel lifts rather than tints.
         static let selection = face(light: 0xCDC8C0, dark: 0x3A3733)
         /// Edge on a selected or focused element.
@@ -75,7 +74,7 @@ enum DS {
         /// Row under the pointer, before selection.
         static let hover = face(light: 0xC2BDB6, dark: 0x343130)
 
-        // Instrumentation only. Never use these for UI chrome.
+        // MARK: Instrumentation — never UI chrome
         /// Classic cream VU face.
         static let meterFace = swatch(0xD8CFB4)
         /// The amber lamp behind a VU face.
@@ -110,7 +109,7 @@ enum DS {
     /// These are what "lean into it" means here — density of real hardware detail, not
     /// decoration laid on top. Every one of them exists on a TC-D5 or a PMD.
     enum Material {
-        // Brushed aluminum grain. Anisotropic: fine horizontal striations across the panel.
+        // MARK: Brushed aluminium grain — fine horizontal striations
         /// Opacity of the lighter striations.
         static let grainLight: Double = 0.055
         /// Opacity of the darker striations.
@@ -120,27 +119,27 @@ enum DS {
         /// Grain runs horizontally across a face, as on a rolled sheet.
         static let grainAngle: Angle = .degrees(0)
 
-        // Fasteners
+        // MARK: Fasteners
         /// Diameter of a panel screw head.
         static let screwSize: CGFloat = 9
         /// Inset of a screw from the panel corner.
         static let screwInset: CGFloat = 10
 
-        // Ventilation
+        // MARK: Ventilation
         /// A single vent slot.
         static let ventSlotWidth: CGFloat = 3
         static let ventSlotHeight: CGFloat = 22
         static let ventSlotGap: CGFloat = 4
         static let ventRadius: CGFloat = 1.5
 
-        // Indicator lamps — small, hard-edged, lit from behind a lens.
+        // MARK: Indicator lamps — hard-edged, lit from behind a lens
         static let lampSize: CGFloat = 7
         /// A lit lamp's lens highlight — a specular dot, not a bloom.
         static let lampSpecular: Double = 0.45
         /// How far an unlit lamp sits below the lit value.
         static let lampUnlitOpacity: Double = 0.22
 
-        // Segmented readout — the tape counter and timings.
+        // MARK: Segmented readout — tape counter and timings
         /// Stroke width of a seven-segment bar.
         static let segmentThickness: CGFloat = 3
         /// Gap between segments within a digit.
@@ -148,22 +147,22 @@ enum DS {
         /// Unlit segments stay faintly visible, as on a real LCD.
         static let segmentGhostOpacity: Double = 0.12
 
-        // Transport keys — rectangular, wide, with real travel.
+        // MARK: Transport keys — rectangular, with real travel
         static let keyHeight: CGFloat = 34
         static let keyMinWidth: CGFloat = 52
         /// How far a key sinks when pressed.
         static let keyTravel: CGFloat = 1.5
 
-        // VU meter
+        // MARK: VU meter
         /// Total sweep of the needle, centered on vertical.
         static let needleSweep: Angle = .degrees(96)
         static let needleWidth: CGFloat = 1.5
         /// Where 0 VU sits along the scale, 0...1 — the red zone begins here.
         static let meterZeroPoint: Double = 0.72
 
-        // Glyphs. SF Symbols used as controls — the trash, the search lens, the clear
-        // cross. Sized here rather than at the call site so an icon can't drift a point
-        // away from the silkscreen label sitting next to it.
+        // MARK: Glyphs
+        // Sized here, not at the call site, so an icon cannot drift a point away from the
+        // silkscreen label beside it.
         /// Inline arrows and marks inside a chip.
         static let glyphHint: CGFloat = 7
         /// The standard control glyph, matched to `Font.silkscreen`.
@@ -171,17 +170,13 @@ enum DS {
         /// A glyph leading a field, matched to `Font.caption`.
         static let glyphField: CGFloat = 10
 
-        // The floating HUD. `HUDPanel` sizes its window from these too — the panel and its
-        // content have to agree exactly or the capsule sits off-centre in its own window.
+        // MARK: Floating HUD
+        // `HUDPanel` sizes its window from these too. See AGENTS.md.
         static let hudWidth: CGFloat = 340
         static let hudHeight: CGFloat = 76
 
-        // Segmented level bargraph — the HUD's meter.
-        //
-        // A bargraph rather than the main window's needle: at this size a needle has no
-        // room to swing, and a row of segments is what a portable deck actually used. It
-        // also earns its space, which the previous decorative ripple did not — segments
-        // are calibrated, so you can see that you're clipping.
+        // MARK: Segmented level bargraph — the HUD's meter
+        // Calibrated, so clipping is visible. A needle has no room to swing at this size.
         static let bargraphSegments = 14
         static let bargraphSegmentWidth: CGFloat = 3
         static let bargraphSegmentHeight: CGFloat = 22

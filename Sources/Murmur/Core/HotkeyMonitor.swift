@@ -86,10 +86,7 @@ final class HotkeyMonitor {
 
         guard type == .flagsChanged else { return false }
 
-        // Matched on the flags alone. Filtering by keyCode first — which the single-key
-        // version did — cannot work for a chord: the event that completes `fn+⌃` carries
-        // only the keyCode of whichever key moved last, so half the transitions would be
-        // dropped depending on the order the user happened to press them in.
+        // Flags alone, never keyCode. See AGENTS.md.
         let nowPressed = hotkey.isSatisfied(by: flags.rawValue)
         guard nowPressed != isPressed else { return false }
         isPressed = nowPressed

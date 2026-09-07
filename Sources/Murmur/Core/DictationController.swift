@@ -124,7 +124,6 @@ final class DictationController {
             endDictation()
 
         case .latch:
-            // The recording started by the first tap simply keeps running.
             tapTimer?.cancel()
             tapTimer = nil
 
@@ -197,29 +196,18 @@ final class DictationController {
 
                 let chunks = try await engine.start()
 
-                // Compare mode captures in *Apple's* format, not a format of our choosing.
-                //
-                // SpeechAnalyzer enforces `Audio sample data must be 16-bit signed integers`
-                // as a hard precondition — feeding it float32 doesn't fail gracefully, it
-                // kills the process. Parakeet is the flexible one (its `feed` converts
-                // int16/int32/float32), so the strict engine picks the format and the
-                // tolerant engine adapts. Both still replay the identical buffers.
+                // Apple's analyzer dictates the format in compare mode. See AGENTS.md.
                 let formatOwner: any TranscriptionEngine = isComparing ? AppleSpeechEngine() : engine
                 guard let format = await formatOwner.preferredInputFormat() else {
                     throw TranscriptionError.noAudioFormat
                 }
 
-                // Audio must reach the engine in capture order. A stream plus a single
-                // draining task guarantees that; spawning a Task per buffer would not.
+                // One stream, one drain: capture order is contractual. See AGENTS.md.
                 let (audioStream, audioContinuation) = AsyncStream<AudioChunk>.makeStream(
                     bufferingPolicy: .bufferingNewest(64)
                 )
                 self.audioContinuation = audioContinuation
 
-                // The recording is accumulated *inside* the ordered drain, not by spawning
-                // a task per buffer. Unstructured tasks have no ordering guarantee, so
-                // collecting them separately could assemble the replay audio out of order
-                // and silently produce word-salad from the comparison.
                 let comparing = isComparing
                 self.feedTask = Task.detached(priority: .userInitiated) {
                     var recording: [AudioChunk] = []
@@ -265,10 +253,8 @@ final class DictationController {
     }
 
     private func endDictation() {
-        // `.finishing` is "active", so without this a second press during processing would
-        // run the whole tail again — re-reading `transcript` before the first pass cleared
-        // it and pasting the same utterance twice. The window is wide: Parakeet transcribes
-        // inside `finish()`, and smart cleanup adds up to 4s on top.
+        // `.finishing` still counts as active, and the window is seconds wide. Without this
+        // guard a second press re-runs the tail and pastes the same utterance twice.
         guard state.isActive, state != .finishing else { return }
         state = .finishing
         capture.stop()

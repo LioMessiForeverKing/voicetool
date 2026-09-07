@@ -63,8 +63,7 @@ final class AudioCapture: @unchecked Sendable {
 
         guard let outputFormat else { return }
 
-        // AVAudioEngine reuses the tap's buffer as soon as this returns, so the engine
-        // must never see it directly — copy when no conversion would otherwise allocate.
+        // The engine must never see the tap's buffer directly. See AGENTS.md.
         guard let converter else {
             if let copy = Self.copy(buffer) {
                 onBuffer?(AudioChunk(buffer: copy))

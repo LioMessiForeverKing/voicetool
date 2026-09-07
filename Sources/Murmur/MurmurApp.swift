@@ -29,7 +29,6 @@ struct MurmurApp: App {
             SettingsWindow(controller: delegate.controller)
         }
 
-        // Secondary now: status and the hotkey while you're working in another app.
         MenuBarExtra {
             MenuContent(controller: delegate.controller)
         } label: {
@@ -69,10 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // before the first dictation.
         RunLog.regenerate()
 
-        // Parakeet's models take ~20s to load from disk, and that cost lands on whichever
-        // dictation touches them first — so the first hold after every launch would stall
-        // with the HUD showing nothing. Warm them in the background instead, but only when
-        // they're actually going to be used and are already downloaded.
+        // Warmed in the background so the first hold does not stall. See AGENTS.md.
         let willUseParakeet = Settings.shared.compareMode || Settings.shared.engine == .parakeet
         if willUseParakeet, ParakeetModels.isDownloaded {
             Task.detached(priority: .utility) {

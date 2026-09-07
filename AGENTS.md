@@ -114,6 +114,64 @@ invisible to SwiftUI's state graph. Don't "clean that up" into `@State`.
 
 ---
 
+## The audio path
+
+**`AsrManager.transcribe` silently transcribes garbage at the wrong sample rate.** FluidAudio
+performs no resampling and no rate validation. Feed it 8 kHz and it does not throw, it returns
+plausible nonsense. `ParakeetEngine` routes everything through FluidAudio's own `resampleBuffer`
+to 16 kHz mono float32 for exactly this reason. It is a live risk, not a theoretical one: in
+compare mode the capture format is Apple's choice, and `bestAvailableAudioFormat` may
+legitimately return 8 kHz.
+
+**Compare mode captures in Apple's format, not one of our choosing.** `SpeechAnalyzer` enforces
+16-bit signed integers as a hard precondition and kills the process on float32 rather than
+failing gracefully. Parakeet's `feed` converts int16, int32 and float32, so the strict engine
+picks the format and the tolerant one adapts. Both still replay identical buffers.
+
+**Audio must reach an engine in capture order.** One `AsyncStream` drained by a single task
+guarantees that. Spawning a `Task` per buffer does not: unstructured tasks have no ordering
+guarantee, the replay audio assembles out of order, and the comparison produces word-salad that
+looks like an engine defect.
+
+**`AVAudioEngine` reuses the tap's buffer as soon as the tap returns.** The engine must never see
+it directly. Copy when no conversion would otherwise allocate.
+
+**Parakeet's models take about 20 seconds to load.** That cost lands on whichever dictation
+touches them first, so the first hold after launch would stall with the HUD showing nothing. They
+are warmed in the background at startup, but only when they will actually be used and are already
+downloaded.
+
+---
+
+## Things found the hard way elsewhere
+
+**Wispr Flow stamps a row with the *start* of the utterance, not the end.** The two hotkeys are
+never pressed on the same millisecond, so its row is routinely stamped slightly before our hold
+began and a forward search from the hold start misses it every time. The search window is bounded
+on both sides rather than just widened backwards: Wispr creates the row with null text when the
+utterance starts and fills the text in afterwards, so an open-ended search happily returns the
+previous dictation's row and reports it as this one's.
+
+**Text injection falls back on a movement check, not an exact-length check.** Falling back after a
+write that actually landed pastes the text a second time, and a duplicated paragraph is far worse
+than a missing one. Some apps normalize newlines or run autocorrect, so the caret can legitimately
+advance by something other than the UTF-16 count. Only a completely unmoved selection proves
+nothing happened.
+
+**A chord is matched on modifier flags alone, never on keyCode.** The event that completes `fn+⌃`
+carries only the keyCode of whichever key moved last, so filtering by keyCode first drops half the
+transitions depending on the order the user pressed them in.
+
+**The speech bias list is capped at `DictionaryCorrector.biasLimit`.** A long context list makes
+these models drift: on quiet or ambiguous audio they begin emitting the terms they were primed
+with, which is a worse failure than the misspelling the biasing prevents.
+
+**The HUD panel and its content must size from the same tokens.** `HUDPanel` sizes its window from
+`DS.Material.hudWidth` and `hudHeight`. Duplicating those numbers is how the capsule ends up
+off-centre inside its own window.
+
+---
+
 ## Design system
 
 `Sources/Murmur/UI/DesignSystem.swift` defines every colour, size, radius, duration

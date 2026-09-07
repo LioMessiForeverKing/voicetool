@@ -32,7 +32,7 @@ func drawIcon(size: CGFloat) -> NSImage {
 
     let squircle = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
 
-    // Drop shadow under the tile.
+    // MARK: Drop shadow under the tile
     ctx.saveGState()
     ctx.setShadow(
         offset: CGSize(width: 0, height: -size * 0.012),
@@ -44,7 +44,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     ctx.fillPath()
     ctx.restoreGState()
 
-    // Diagonal brand gradient.
+    // MARK: Diagonal brand gradient
     ctx.saveGState()
     ctx.addPath(squircle)
     ctx.clip()
@@ -77,7 +77,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     )
     ctx.restoreGState()
 
-    // Waveform mark.
+    // MARK: Waveform mark
     let barWidth = rect.width * 0.072
     let gap = rect.width * 0.050
     let totalWidth = CGFloat(bars.count) * barWidth + CGFloat(bars.count - 1) * gap

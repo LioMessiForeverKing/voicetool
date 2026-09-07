@@ -310,7 +310,6 @@ struct VUMeter: View {
             )
         }
 
-        // Needle.
         let angle = -sweep / 2 + sweep * movement.position
         var needlePath = Path()
         needlePath.move(to: pivot)
