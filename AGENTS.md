@@ -178,6 +178,13 @@ off-centre inside its own window.
 and material token. **Views must not contain literal values.** If a component needs a number
 that isn't a token, add the token rather than inlining it.
 
+**The palette is written out twice, and `MurmurDesignTests` is what stops the copies drifting.**
+`windows/src/Murmur.App/Design/DesignTokens.cs` carries the same tokens with the same values, and
+the test parses both files as text and fails on any mismatch: a changed value, or a token added or
+removed on one side only. Change a colour on one platform and `swift test` goes red naming the
+token and both values. Change it on both, and it stays green. Nothing else enforces this, and a
+divergence is otherwise silent — both sides compile and one simply looks wrong.
+
 The direction is 1980s field recorders — Sony TC-D5, Marantz PMD, Nakamichi, Braun. Silver
 face in light appearance, black face in dark. Two rules that are not negotiable:
 

@@ -40,6 +40,11 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
+            name: "MurmurDesignTests",
+            path: "Tests/MurmurDesignTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
             name: "MurmurDictionaryTests",
             dependencies: ["MurmurDictionary"],
             path: "Tests/MurmurDictionaryTests",
