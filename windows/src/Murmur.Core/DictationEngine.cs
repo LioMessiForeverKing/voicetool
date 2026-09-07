@@ -137,14 +137,10 @@ public sealed class DictationEngine : IAsyncDisposable
         {
             await foreach (var chunk in _capture.CaptureAsync(_recording!.Token).ConfigureAwait(false))
             {
-                // Stop consuming the moment recording ends. Cancellation is cooperative, so
-                // chunks already queued still arrive after EndAsync has moved on — and
-                // without this guard one of them sets Level back to a reading that has
-                // already been zeroed.
+                // Cancellation is cooperative, so a queued chunk could otherwise un-zero the level.
                 if (State != DictationState.Recording) break;
 
-                // Copied, not referenced: capture implementations are entitled to reuse
-                // their buffer the moment this returns.
+                // Copied, not referenced: capture implementations may reuse the buffer on return.
                 _buffer?.AddRange(chunk.Samples.Span);
                 Level = chunk.Rms();
                 Changed?.Invoke(this, EventArgs.Empty);
@@ -152,12 +148,10 @@ public sealed class DictationEngine : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // Normal: the key was released.
         }
         finally
         {
-            // Authoritative: this runs only once the capture loop has genuinely finished, so
-            // nothing can raise the level afterwards and leave the meter stuck.
+            // Authoritative: the capture loop has finished, so nothing can leave the meter stuck.
             Level = 0;
             Changed?.Invoke(this, EventArgs.Empty);
         }
@@ -199,8 +193,7 @@ public sealed class DictationEngine : IAsyncDisposable
     {
         if (samples is null || samples.Count == 0) return;
 
-        // Measured from key release, because that is the wait the user actually feels — and
-        // it is the only figure on which a streaming and a batch engine compare honestly.
+        // Measured from key release: the wait the user feels, and the only honest cross-engine figure.
         var releasedAt = _clock.Now;
         var audio = new ReadOnlyMemory<float>(samples.ToArray());
 
@@ -222,8 +215,7 @@ public sealed class DictationEngine : IAsyncDisposable
         var raw = string.Join(' ', transcripts);
         if (string.IsNullOrWhiteSpace(raw)) return;
 
-        // The dictionary runs last and unconditionally. Biasing only raises the odds of the
-        // right word; this is the pass that guarantees it.
+        // The dictionary runs last and unconditionally: biasing raises the odds, this guarantees.
         var (corrected, applied) = new DictionaryCorrector(entries).Apply(raw);
 
         var result = new DictationResult(

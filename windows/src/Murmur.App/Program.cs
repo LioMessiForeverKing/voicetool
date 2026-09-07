@@ -13,11 +13,8 @@ public static class Program
     {
         PlatformFactory.InstallResolver();
 
-        // The published single-file exe is the only artifact CI can run end to end, and a
-        // GitHub runner cannot show a window. This branch exercises startup — assembly
-        // loading, native library resolution out of the self-extracted bundle, model
-        // discovery — and exits, which is the class of failure that only appears after
-        // publishing.
+        // The published exe is the only artifact CI can run end to end, and a runner shows no
+        // window. This branch exercises startup and exits.
         if (args.Contains("--selftest", StringComparer.OrdinalIgnoreCase))
         {
             return SelfTest.Run();

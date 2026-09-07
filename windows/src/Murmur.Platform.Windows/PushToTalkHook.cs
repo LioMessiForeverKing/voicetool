@@ -90,7 +90,7 @@ public sealed class PushToTalkHook : IHotkeySource
     /// Stamped into <c>dwExtraInfo</c> on every event this app injects, so our own Ctrl+V
     /// paste cannot re-enter this hook and re-trigger dictation.
     /// </summary>
-    public static readonly IntPtr InjectedTag = unchecked((IntPtr)0x4D524D52); // 'MRMR'
+    public static readonly IntPtr InjectedTag = unchecked((IntPtr)0x4D524D52);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT
@@ -179,8 +179,7 @@ public sealed class PushToTalkHook : IHotkeySource
             _threadId = GetCurrentThreadId();
             s_callback = StaticCallback;
 
-            // Pass the running module's handle. IntPtr.Zero is documented as possibly
-            // failing when threadId is 0, which is exactly the global case.
+            // IntPtr.Zero is documented as possibly failing when threadId is 0, which is the global case.
             _hook = SetWindowsHookEx(WH_KEYBOARD_LL, s_callback, GetModuleHandle(null), 0);
             installed = _hook != IntPtr.Zero;
 
@@ -188,12 +187,9 @@ public sealed class PushToTalkHook : IHotkeySource
             ready.Set();
             if (!installed) return;
 
-            // Required. The system delivers hook callbacks by *sending a message* to this
-            // thread, so without a pump the hook is installed but never invoked.
+            // A global hook needs a message pump or it never fires. See AGENTS.md.
             while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
             {
-                // No TranslateMessage/DispatchMessage: this thread owns no windows, and the
-                // only message it cares about is the WM_QUIT that ends the loop.
             }
 
             if (_hook != IntPtr.Zero)
@@ -247,13 +243,9 @@ public sealed class PushToTalkHook : IHotkeySource
         }
         catch (Exception)
         {
-            // An exception escaping into the hook chain would take the process down from a
-            // thread with no useful context. Swallow and keep the chain intact.
         }
 
-        // Always chain. Microsoft: otherwise "other applications that have installed
-        // WH_KEYBOARD_LL hooks will not receive hook notifications and may behave
-        // incorrectly as a result."
+        // Always chain, and never throw out of the callback. See AGENTS.md.
         return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
     }
 
@@ -264,9 +256,7 @@ public sealed class PushToTalkHook : IHotkeySource
         // Ignore anything this app injected itself.
         if (e.ExtraInfo == InjectedTag) return;
 
-        // ToInt32 rather than a cast: since .NET 7 an explicit (int)IntPtr conversion
-        // silently truncates instead of throwing, which CA2020 flags. Window messages are
-        // always small, so the checked conversion is free and states the intent.
+        // ToInt32, not a cast: since .NET 7 an explicit (int)IntPtr truncates silently, which CA2020 flags.
         var message = wParam.ToInt32();
         var isDown = message is WM_KEYDOWN or WM_SYSKEYDOWN;
         var isUp = message is WM_KEYUP or WM_SYSKEYUP;
@@ -276,7 +266,6 @@ public sealed class PushToTalkHook : IHotkeySource
 
         if (isDown)
         {
-            // The OS re-fires key-down while a key is held; only the first is a press.
             if (_isDown) return;
             _isDown = true;
             Pressed?.Invoke(this, EventArgs.Empty);

@@ -49,8 +49,7 @@ public static class SelfTest
 
     private static int CheckStorage()
     {
-        // Exercises the source-generated JSON, which is the part most likely to have been
-        // silently broken by trimming or single-file publishing.
+        // Exercises the source-generated JSON, the part trimming and single-file most often break.
         var directory = Path.Combine(Path.GetTempPath(), $"murmur-selftest-{Guid.NewGuid():N}");
 
         try
@@ -78,14 +77,20 @@ public static class SelfTest
         }
         finally
         {
-            try { Directory.Delete(directory, recursive: true); } catch (IOException) { /* best effort */ }
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Best effort.
+            }
         }
     }
 
     private static int CheckModelDiscovery()
     {
-        // A fresh machine has no model, and that must be a friendly message rather than a
-        // crash on launch.
+        // A fresh machine has no model, and that must be a message rather than a crash.
         var located = ParakeetTranscriber.Locate();
         Console.WriteLine($"  model: {located ?? "(not installed — expected on a clean runner)"}");
 
@@ -118,8 +123,7 @@ public static class SelfTest
         failures += Check("audio capture constructs", PlatformFactory.CreateAudioCapture() is not null);
         failures += Check("text injector constructs", PlatformFactory.CreateTextInjector() is not null);
 
-        // Constructed, not started: installing a real low-level keyboard hook on a CI runner
-        // is neither useful nor polite.
+        // Constructed, not started: installing a real keyboard hook on a CI runner is impolite.
         var hotkey = PlatformFactory.CreateHotkeySource(0xA3);
         failures += Check("hotkey source constructs with Right Ctrl", hotkey is not null);
         hotkey?.Dispose();

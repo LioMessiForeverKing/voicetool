@@ -24,14 +24,11 @@ public partial class App : Application
             _main = new MainWindow(_composition);
             desktop.MainWindow = _main;
 
-            // Closing the window leaves Murmur running in the tray — the hotkey still works,
-            // which is the whole point of a dictation app. Quit is explicit, from the tray
-            // menu or the app menu.
+            // Closing leaves Murmur in the tray with the hotkey live. Quit is explicit.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            // Disposing tears down the keyboard hook and releases the audio device. Leaving
-            // a low-level hook installed after exit is the kind of thing that makes a
-            // machine feel broken until it is rebooted.
+            // Disposing tears down the hook and releases the audio device; a hook left installed
+            // makes the machine feel broken until reboot.
             desktop.ShutdownRequested += (_, _) =>
             {
                 _composition?.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -74,8 +74,7 @@ public sealed class TranscriptStore
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                // A single corrupt line must not destroy the whole history — skip it and
-                // keep everything else.
+                // One corrupt line must not destroy the whole history.
                 try
                 {
                     var record = JsonSerializer.Deserialize(line, TranscriptJsonContext.Default.TranscriptRecord);
@@ -83,12 +82,12 @@ public sealed class TranscriptStore
                 }
                 catch (JsonException)
                 {
-                    // Skip.
                 }
             }
         }
 
-        _records.Reverse();   // newest first, which is how the list reads
+        // Newest first, which is how the list reads.
+        _records.Reverse();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
