@@ -38,9 +38,7 @@ public struct DictionaryCorrector: Sendable {
     }
 
     public init(entries: [DictionaryEntry]) {
-        // Longest trigger first. Sorting by the trigger's length is what makes "Claude Code"
-        // win over "Claude" — once the longer rule has rewritten the span, the shorter one
-        // no longer sees the text it would have matched.
+        // Longest trigger first, so "Claude Code" wins over "Claude" and rewrites the span.
         let corrections = entries
             .filter { $0.isEnabled && $0.kind == .correction }
             .filter { !$0.hear.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -73,9 +71,7 @@ public struct DictionaryCorrector: Sendable {
             let matches = rule.regex.numberOfMatches(in: result, range: range)
             guard matches > 0 else { continue }
 
-            // Record what the engine actually produced, not the rule's trigger — seeing the
-            // real mishearing is the point, and it can differ from the trigger in case or
-            // spacing ("CloudCode" matched by "cloud code").
+            // Record what the engine produced, not the trigger: the real mishearing is the point.
             let firstMatch = rule.regex.firstMatch(in: result, range: range)
             let heard = firstMatch
                 .flatMap { Range($0.range, in: result) }
@@ -107,8 +103,7 @@ public struct DictionaryCorrector: Sendable {
     /// requiring that no letter or digit sits on either side is the stricter guarantee, and
     /// it's what keeps "cloud code" off "Cloudflare".
     private static func makeRegex(for trigger: String) -> NSRegularExpression? {
-        // NFC here too, matching `apply(to:)` — a trigger typed into the UI and a trigger read
-        // back from the dictionary file can arrive in different normal forms.
+        // NFC here too: a trigger typed in the UI and one read from disk differ in normal form.
         let parts = trigger
             .precomposedStringWithCanonicalMapping
             .trimmingCharacters(in: .whitespacesAndNewlines)

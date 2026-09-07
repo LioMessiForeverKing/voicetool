@@ -7,8 +7,7 @@ struct MurmurApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        // The main window. A `Window` rather than a `WindowGroup`: this app has one front
-        // panel, and letting ⌘N spawn a second copy of a tape deck makes no sense.
+        // One front panel, so `Window` rather than `WindowGroup`: ⌘N must not spawn a second deck.
         Window("Murmur", id: "main") {
             MainWindow(controller: delegate.controller)
         }
@@ -23,8 +22,7 @@ struct MurmurApp: App {
             }
         }
 
-        // Fully qualified: this app has its own `Settings` type, which otherwise shadows
-        // SwiftUI's settings scene.
+        // Fully qualified: this app's own `Settings` type otherwise shadows SwiftUI's scene.
         SwiftUI.Settings {
             SettingsWindow(controller: delegate.controller)
         }
@@ -50,22 +48,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var stateObservation: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // A regular app now: dock icon, app menu, standard windows. The HUD is still a
-        // non-activating panel, so dictating into another app never steals its focus — that
-        // property belongs to the panel, not to the activation policy.
+        // Regular app, but the HUD stays a non-activating panel so dictation never steals focus.
         NSApp.setActivationPolicy(.regular)
 
         hud = HUDPanel(controller: controller)
 
         if !controller.activate() {
             Permissions.promptForAccessibility()
-            // The tap can only be created once the user grants Accessibility, and there's
-            // no notification for that — poll until it takes.
+            // No notification exists for an Accessibility grant, so poll until the tap takes.
             retryActivation()
         }
 
-        // Write the dashboard up front so the menu item always opens something, even
-        // before the first dictation.
+        // Written up front so the menu item always opens something.
         RunLog.regenerate()
 
         // Warmed in the background so the first hold does not stall. See AGENTS.md.
@@ -76,8 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Every `make install` relaunches the app and drops its windows. Restoring the
-        // window when it was open last time keeps it from vanishing on each rebuild.
+        // `make install` drops the windows; restoring keeps them from vanishing each rebuild.
         if UserDefaults.standard.bool(forKey: "comparisonWindowOpen") {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
@@ -181,9 +174,7 @@ private struct MenuContent: View {
 
         Divider()
 
-        // Presets only. A chord has to be *recorded*, which needs a window that can take key
-        // events — a menu can't, and an item that silently did nothing would be worse than
-        // not offering it. Settings owns that.
+        // Presets only: a chord must be recorded, which needs a window that takes key events.
         Picker("Push-to-talk key", selection: Binding(
             get: { settings.hotkey },
             set: { key in
@@ -230,8 +221,7 @@ private struct MenuContent: View {
         }
         .keyboardShortcut("d")
 
-        // Downloading ~470 MB on the first hold would look like a hang, so offer to do it
-        // deliberately instead.
+        // A 470 MB download on the first hold would look like a hang, so offer it deliberately.
         if settings.engine == .parakeet {
             Button(parakeetStatus) { preloadParakeet() }
                 .disabled(isPreloadingParakeet || parakeetOnDisk)

@@ -155,14 +155,11 @@ public enum VocabularyLearner {
             let words = sentence.split(separator: " ").map(String.init)
             var run: [String] = []
 
-            // Indices rather than `enumerated()`: this target has to load on the CI runner,
-            // which is older than the macOS 26 it's compiled for, and `EnumeratedSequence`'s
-            // Collection conformance is a macOS 26 runtime symbol. See AGENTS.md.
+            // Indices, not `enumerated()`: that conformance is a macOS 26 runtime symbol. See AGENTS.md.
             for index in words.indices {
                 let word = clean(words[index])
 
-                // Index 0 is capitalised by grammar, not by meaning, so it carries no signal
-                // on its own. It can still *continue* a phrase — but a phrase can't start there.
+                // Index 0 is capitalised by grammar, so it can continue a phrase but never start one.
                 let isSignal = !word.isEmpty
                     && !neverLearn.contains(word.lowercased())
                     && (isInternallyCapitalised(word) || (index > 0 && startsCapitalised(word)))

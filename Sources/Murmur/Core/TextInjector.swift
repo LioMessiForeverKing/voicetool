@@ -63,8 +63,7 @@ enum TextInjector {
             return .unverified("selected text not settable")
         }
 
-        // Without a readable insertion point there's no way to tell a real insert from a
-        // silently-dropped one, so don't gamble — go straight to the fallback.
+        // No readable insertion point means a dropped insert is undetectable: use the fallback.
         guard let before = selectedRange(of: element) else {
             return .unverified("no readable selection range")
         }
@@ -122,14 +121,12 @@ enum TextInjector {
         pasteboard.setString(text, forType: .string)
 
         Task { @MainActor in
-            // Give the target app a moment to observe the new pasteboard generation before
-            // ⌘V arrives, or a fast paste can grab the *previous* contents.
+            // Let the target observe the new pasteboard generation, or a fast ⌘V grabs the old one.
             try? await Task.sleep(for: .milliseconds(40))
             postCommandV()
             Log.inject.info("pasted (\(text.count) chars)")
 
-            // The paste is asynchronous in the target app; restore only once it's had time
-            // to read the pasteboard.
+            // The paste is asynchronous; restore only once the target has read the pasteboard.
             try? await Task.sleep(for: .milliseconds(500))
             restore(saved, to: pasteboard)
         }
@@ -143,8 +140,7 @@ enum TextInjector {
               let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
         else { return }
 
-        // Set explicitly rather than inheriting live hardware modifier state — the user may
-        // still be resting a finger on something.
+        // Set explicitly, not inherited: the user may still be resting a finger on a modifier.
         down.flags = .maskCommand
         up.flags = .maskCommand
 

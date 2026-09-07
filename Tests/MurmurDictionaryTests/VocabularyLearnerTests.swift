@@ -36,8 +36,7 @@ struct VocabularyLearnerTests {
 
     @Test("A single sighting is not enough")
     func ignoresOneOff() {
-        // Indistinguishable from a mis-hearing, and biasing toward a mis-hearing teaches
-        // the engine to repeat it.
+        // Biasing toward a mis-hearing teaches the engine to repeat it.
         #expect(learn(["We shipped the Kubernetes migration."]).isEmpty)
     }
 
@@ -105,9 +104,7 @@ struct VocabularyLearnerTests {
 
     @Test("The trigger side of a correction is never learned")
     func excludesCorrectionTriggers() {
-        // The load-bearing case. "Cloud Code" is in the history precisely because the engine
-        // kept producing it; the dictionary exists to rewrite it. Learning it would bias the
-        // engine toward the very error being corrected.
+        // The load-bearing case: learning "Cloud Code" biases toward the error being corrected.
         let entries = [DictionaryEntry.correction(hear: "Cloud Code", write: "Claude Code")]
         #expect(learn(
             ["I opened Cloud Code again.", "Cloud Code keeps crashing in Cloud Code."],
@@ -125,8 +122,7 @@ struct VocabularyLearnerTests {
 
     @Test("A stoplisted word breaks a phrase instead of joining it")
     func stoplistBreaksPhrases() {
-        // The bug this pins: checking the stoplist against the finished phrase lets two
-        // stoplisted words merge into a novel one ("Tuesday I") that passes every later check.
+        // The bug this pins: two stoplisted words merging into a novel one that passes later checks.
         #expect(learn([
             "We shipped Kubernetes Tuesday and Postgres Tuesday.",
             "Again, Kubernetes Tuesday and Postgres Tuesday.",
@@ -135,8 +131,7 @@ struct VocabularyLearnerTests {
 
     @Test("Exclusion matches across Unicode normalisation forms")
     func excludesAcrossNormalisation() {
-        // macOS hands back decomposed strings; the dictionary file is typically precomposed.
-        // Without NFC on both sides these are different keys and the exclusion silently misses.
+        // Decomposed from macOS, precomposed on disk: without NFC the exclusion silently misses.
         let decomposed = "Jose\u{301}"
         let precomposed = "José"
         #expect(learn(
@@ -177,8 +172,7 @@ struct VocabularyLearnerTests {
 
     @Test("The same history always produces the same list")
     func isDeterministic() {
-        // Counts are built in a Dictionary, whose order is not stable between runs. Without
-        // the alphabetical tie-break the bias list would shuffle for equally-ranked terms.
+        // Dictionary order is unstable, so without the tie-break equal ranks would shuffle.
         let texts = [
             "We use Kubernetes and Postgres and Redis.",
             "Again: Kubernetes and Postgres and Redis.",

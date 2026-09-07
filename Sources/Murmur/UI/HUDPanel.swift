@@ -60,9 +60,7 @@ final class HUDPanel: NSPanel {
     }
 
     func present() {
-        // Every active state change (starting → listening → finishing) calls this. Without
-        // the early exit the panel would reset to alpha 0 and re-fade on each one, which
-        // reads as a flicker mid-utterance.
+        // Without the early exit each state change re-fades the panel, reading as a flicker.
         guard !isVisible || alphaValue < 1 else { return }
 
         reposition()

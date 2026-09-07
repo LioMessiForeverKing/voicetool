@@ -36,9 +36,7 @@ final class HotkeyMonitor {
                 guard let refcon else { return Unmanaged.passUnretained(event) }
                 let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
 
-                // CGEvent isn't Sendable, so pull out the plain values before crossing into
-                // actor-isolated code. The tap was added to the main run loop, so this
-                // callback genuinely does run on the main thread.
+                // CGEvent isn't Sendable; the tap is on the main run loop, so this really is main-thread.
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
                 let flags = event.flags
                 let consume = MainActor.assumeIsolated {

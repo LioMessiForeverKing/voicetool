@@ -28,8 +28,7 @@ actor ParakeetEngine: TranscriptionEngine {
         let (stream, continuation) = AsyncThrowingStream<TranscriptionChunk, Error>.makeStream()
         self.continuation = continuation
 
-        // Force the (possibly very slow) first load to happen here rather than on release,
-        // so the user waits before speaking instead of losing an utterance to a timeout.
+        // Force the slow first load here, so the wait lands before speech, not on release.
         _ = try await ParakeetModels.shared.manager()
 
         return stream
@@ -54,9 +53,7 @@ actor ParakeetEngine: TranscriptionEngine {
             samples.removeAll(keepingCapacity: true)
         }
 
-        // Parakeet's encoder needs a minimum window; a stray tap of the key isn't speech.
-        // Logged rather than silent — an unexpected drop to zero here is how the
-        // format bug above disguised itself as a fast, empty result.
+        // A stray tap is not speech. Logged, because a silent drop to zero once hid the format bug.
         guard samples.count >= 1_600 else {
             Log.speech.info("Parakeet: skipped — only \(self.samples.count) samples captured")
             return
@@ -122,8 +119,6 @@ actor ParakeetModels {
         if let loadTask { return try await loadTask.value }
 
         let task = Task<AsrManager, Error> {
-            // Built as a value first: os.Logger requires a literal interpolation, so a
-            // ternary can't be passed directly as the argument.
             let stage = Self.isDownloaded
                 ? "loading models from disk"
                 : "downloading models (~470 MB, one time)"
@@ -142,8 +137,7 @@ actor ParakeetModels {
             loaded = manager
             return manager
         } catch {
-            // Don't cache a failed load — a transient download error shouldn't wedge the
-            // engine for the rest of the session.
+            // Never cache a failed load: a transient download error must not wedge the session.
             loadTask = nil
             throw error
         }

@@ -22,9 +22,7 @@ enum EngineComparison {
         onResult: @MainActor (ComparisonResult) -> Void = { _ in }
     ) async -> [ComparisonResult] {
         var results: [ComparisonResult] = []
-        // Sequential, not concurrent: two engines racing for the ANE and CPU would
-        // contaminate each other's timings. So this is not a live race — each engine is
-        // timed in isolation and the *measured* durations are what get compared.
+        // Sequential: two engines racing for the ANE would contaminate each other's timings.
         for (name, engine) in [
             ("Apple", AppleSpeechEngine() as any TranscriptionEngine),
             ("Parakeet", ParakeetEngine() as any TranscriptionEngine),
@@ -47,8 +45,6 @@ enum EngineComparison {
             // Timed after start(), so model load is not read as an engine difference.
             let started = Date()
 
-            // Collect on a separate task: the engine may emit its final result during
-            // `finish()`, so the consumer has to already be draining.
             let collector = Task { () -> String in
                 var latest = ""
                 for try await chunk in stream { latest = chunk.text }
@@ -60,9 +56,7 @@ enum EngineComparison {
             }
             await engine.finish()
 
-            // Surface a thrown stream as an error rather than as empty output — an engine
-            // that failed and an engine that heard nothing look identical otherwise, which
-            // is exactly how the audio-format bug hid.
+            // A thrown stream surfaces as an error; failed and silent otherwise look identical.
             let text: String
             do {
                 text = try await collector.value

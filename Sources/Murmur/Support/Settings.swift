@@ -79,9 +79,7 @@ final class Settings {
 
     private init() {
         LegacyMigration.runIfNeeded()
-        // Key reused from the three-preset version, and `Hotkey(storageValue:)` still
-        // parses what that wrote ("fn", "rightOption"), so an existing choice survives the
-        // upgrade instead of silently reverting.
+        // Key reused from the preset version, so an existing choice survives the upgrade.
         let stored = defaults.string(forKey: Keys.pushToTalkKey)
         hotkey = stored.flatMap(Hotkey.init(storageValue:)) ?? .default
         // Apple by default: no download, no dependency, live text while speaking.
@@ -90,8 +88,7 @@ final class Settings {
         smartCleanup = defaults.object(forKey: Keys.smartCleanup) as? Bool ?? false
         compareMode = defaults.object(forKey: Keys.compareMode) as? Bool ?? false
         soundEnabled = defaults.object(forKey: Keys.soundEnabled) as? Bool ?? true
-        // On by default: it only ever fills bias slots the dictionary left empty, and
-        // it costs nothing until there's enough history to clear the evidence threshold.
+        // On by default: it only fills bias slots the dictionary left empty, and costs nothing.
         learnVocabulary = defaults.object(forKey: Keys.learnVocabulary) as? Bool ?? true
         latchEnabled = defaults.object(forKey: Keys.latchEnabled) as? Bool ?? true
     }

@@ -43,8 +43,7 @@ struct HUDView: View {
         .padding(.vertical, DS.Space.base)
         .frame(width: DS.Material.hudWidth, height: DS.Material.hudHeight)
         .background {
-            // A deck window set into a brushed panel — the same construction as the main
-            // window's readout, so the HUD reads as a piece of the same unit.
+            // Same construction as the main window's readout, so the HUD reads as one unit.
             RoundedRectangle(cornerRadius: DS.Radius.panel)
                 .fill(DS.Color.deck)
                 .overlay {
@@ -90,9 +89,7 @@ struct HUDView: View {
     /// unambiguous at a glance ambiguous.
     private var status: String {
         switch controller.state {
-        // "Lock" is the difference between a recording that stops when you let go and one
-        // that doesn't. Without it a latched session is indistinguishable from a held one,
-        // and the mic stays open with no indication that it will.
+        // Without "Lock", a latched session looks like a held one and the mic stays open unseen.
         case .starting, .listening: controller.isLatched ? "Lock" : "Rec"
         case .finishing: "Proc"
         case .error: "Fault"
@@ -104,8 +101,7 @@ struct HUDView: View {
         switch controller.state {
         case .starting: "Listening…"
         case .listening: controller.transcript.isEmpty ? "Listening…" : controller.transcript
-        // Parakeet transcribes in one pass on release, so there's nothing to show until
-        // it lands — say what's happening instead of leaving an empty pill.
+        // Parakeet lands in one pass on release, so say what is happening rather than show nothing.
         case .finishing: controller.transcript.isEmpty ? "Transcribing…" : controller.transcript
         case .error(let message): message
         case .idle: ""
@@ -191,8 +187,7 @@ private struct LevelBargraph: View {
             hold.value = current
             hold.setAt = now
         } else if now.timeIntervalSince(hold.setAt) > DS.Material.bargraphPeakHold {
-            // Falls back to the signal rather than snapping to zero, so the marker slides
-            // down with the level instead of vanishing.
+            // Falls back to the signal, so the marker slides down instead of vanishing.
             hold.value = current
             hold.setAt = now
         }
