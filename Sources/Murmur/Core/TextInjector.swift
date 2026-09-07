@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 
 /// Puts text into whatever field currently has keyboard focus.
@@ -140,7 +141,7 @@ enum TextInjector {
 
     private static func postCommandV() {
         guard let source = CGEventSource(stateID: .privateState) else { return }
-        let vKey: CGKeyCode = 9 // kVK_ANSI_V
+        let vKey = CGKeyCode(kVK_ANSI_V)
 
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)

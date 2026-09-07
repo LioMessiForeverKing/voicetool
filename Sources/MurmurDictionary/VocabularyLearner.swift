@@ -63,9 +63,9 @@ public enum VocabularyLearner {
 
         let excluded = exclusions(from: entries)
 
-        var runCounts: [String: Int] = [:]      // key: lowercased phrase
+        var runCounts: [String: Int] = [:]
         var lastSeen: [String: Date] = [:]
-        var display: [String: String] = [:]     // key -> the casing to actually emit
+        var display: [String: String] = [:]
 
         for transcript in transcripts {
             // A set, so repetition inside one run counts once.
