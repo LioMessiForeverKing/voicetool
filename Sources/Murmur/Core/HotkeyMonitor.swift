@@ -36,9 +36,7 @@ final class HotkeyMonitor {
                 guard let refcon else { return Unmanaged.passUnretained(event) }
                 let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
 
-                // CGEvent isn't Sendable, so pull out the plain values before crossing into
-                // actor-isolated code. The tap was added to the main run loop, so this
-                // callback genuinely does run on the main thread.
+                // CGEvent isn't Sendable; the tap is on the main run loop, so this really is main-thread.
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
                 let flags = event.flags
                 let consume = MainActor.assumeIsolated {
@@ -86,10 +84,7 @@ final class HotkeyMonitor {
 
         guard type == .flagsChanged else { return false }
 
-        // Matched on the flags alone. Filtering by keyCode first — which the single-key
-        // version did — cannot work for a chord: the event that completes `fn+⌃` carries
-        // only the keyCode of whichever key moved last, so half the transitions would be
-        // dropped depending on the order the user happened to press them in.
+        // Flags alone, never keyCode. See AGENTS.md.
         let nowPressed = hotkey.isSatisfied(by: flags.rawValue)
         guard nowPressed != isPressed else { return false }
         isPressed = nowPressed

@@ -5,24 +5,17 @@ let package = Package(
     name: "Murmur",
     platforms: [.macOS(.v26)],
     dependencies: [
-        // Parakeet TDT as CoreML on the Neural Engine. Optional at runtime — Apple's
-        // SpeechTranscriber remains the default and needs no dependency at all.
+        // Optional at runtime: Apple's SpeechTranscriber is the default and needs no dependency.
         .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.15.6")
     ],
     targets: [
-        // The dictionary is its own target so it can be tested directly, and because its
-        // behaviour is a cross-platform contract: the Windows app reimplements this logic in
-        // C#, and both sides run the same vectors in shared/dictionary-test-vectors.json.
+        // Its own target: directly testable, and a cross-platform contract shared with the C# side.
         .target(
             name: "MurmurDictionary",
             path: "Sources/MurmurDictionary",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
-        // Push-to-talk gesture recognition. Split out for the same reason as the
-        // dictionary: it is pure, timing-dependent logic that is effectively impossible to
-        // verify by hand — you cannot reliably tap a key twice inside 350ms on demand — and
-        // the app target itself cannot be unit tested, because it needs macOS 26 while the
-        // CI runner is older than that.
+        // Split out like the dictionary: pure timing logic the app target cannot unit test.
         .target(
             name: "MurmurInput",
             path: "Sources/MurmurInput",

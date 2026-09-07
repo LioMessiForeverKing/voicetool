@@ -28,8 +28,7 @@ actor ParakeetEngine: TranscriptionEngine {
         let (stream, continuation) = AsyncThrowingStream<TranscriptionChunk, Error>.makeStream()
         self.continuation = continuation
 
-        // Force the (possibly very slow) first load to happen here rather than on release,
-        // so the user waits before speaking instead of losing an utterance to a timeout.
+        // Force the slow first load here, so the wait lands before speech, not on release.
         _ = try await ParakeetModels.shared.manager()
 
         return stream
@@ -39,16 +38,7 @@ actor ParakeetEngine: TranscriptionEngine {
         let buffer = chunk.buffer
         guard buffer.frameLength > 0 else { return }
 
-        // Delegated to FluidAudio's own converter rather than hand-rolled, for one reason
-        // that matters more than tidiness: `AsrManager.transcribe(_ samples: [Float])`
-        // performs **no resampling and no rate validation**. Feed it the wrong sample rate
-        // and it doesn't throw — it silently transcribes garbage.
-        //
-        // That's a live risk here. In compare mode the capture format is dictated by
-        // Apple's analyzer, and `bestAvailableAudioFormat` may legitimately return 8 kHz
-        // as well as 16 kHz. `resampleBuffer` normalizes whatever arrives to the 16 kHz
-        // mono float32 the model expects, and its Int16→Float path is bit-identical to
-        // dividing by 32768, so nothing is lost versus doing it by hand.
+        // FluidAudio's own converter: it does not validate sample rate. See AGENTS.md.
         do {
             samples.append(contentsOf: try converter.resampleBuffer(buffer))
         } catch {
@@ -63,9 +53,7 @@ actor ParakeetEngine: TranscriptionEngine {
             samples.removeAll(keepingCapacity: true)
         }
 
-        // Parakeet's encoder needs a minimum window; a stray tap of the key isn't speech.
-        // Logged rather than silent — an unexpected drop to zero here is how the
-        // format bug above disguised itself as a fast, empty result.
+        // A stray tap is not speech. Logged, because a silent drop to zero once hid the format bug.
         guard samples.count >= 1_600 else {
             Log.speech.info("Parakeet: skipped — only \(self.samples.count) samples captured")
             return
@@ -131,8 +119,6 @@ actor ParakeetModels {
         if let loadTask { return try await loadTask.value }
 
         let task = Task<AsrManager, Error> {
-            // Built as a value first: os.Logger requires a literal interpolation, so a
-            // ternary can't be passed directly as the argument.
             let stage = Self.isDownloaded
                 ? "loading models from disk"
                 : "downloading models (~470 MB, one time)"
@@ -151,8 +137,7 @@ actor ParakeetModels {
             loaded = manager
             return manager
         } catch {
-            // Don't cache a failed load — a transient download error shouldn't wedge the
-            // engine for the rest of the session.
+            // Never cache a failed load: a transient download error must not wedge the session.
             loadTask = nil
             throw error
         }

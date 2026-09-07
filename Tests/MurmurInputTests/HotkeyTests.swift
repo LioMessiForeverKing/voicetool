@@ -22,8 +22,7 @@ struct HotkeyTests {
 
     @Test("Left and right of the same key are not interchangeable")
     func sidesAreDistinct() {
-        // The whole reason for device-dependent masks. With the union mask, holding Left ⌥
-        // and tapping Right ⌥ hides the release: the mic stays open with the HUD up.
+        // With a union mask, holding Left ⌥ and tapping Right ⌥ hides the release: mic stays open.
         let hotkey = Hotkey([.rightOption])!
         #expect(!hotkey.isSatisfied(by: ModifierKey.leftOption.mask))
     }
@@ -38,8 +37,7 @@ struct HotkeyTests {
 
     @Test("Unrelated modifiers held at the same time don't block it")
     func extraModifiersAreAllowed() {
-        // Requiring an exact match would make the hotkey die mid-sentence the moment Shift
-        // was held for a capital letter.
+        // An exact match would kill the hotkey the moment Shift was held for a capital.
         let hotkey = Hotkey([.rightOption])!
         #expect(hotkey.isSatisfied(by: ModifierKey.rightOption.mask | otherModifier))
     }
@@ -54,7 +52,6 @@ struct HotkeyTests {
 
     @Test("Every modifier has a distinct bit")
     func masksAreUnique() {
-        // A collision would make two different keys indistinguishable to the event tap.
         let masks = ModifierKey.allCases.map(\.mask)
         #expect(Set(masks).count == masks.count)
         #expect(!masks.contains(0))
@@ -88,11 +85,8 @@ struct HotkeyTests {
     func consumesOnlyDedicatedKeys() {
         #expect(Hotkey([.rightOption])!.shouldConsumeEvent)
         #expect(Hotkey([.rightOption, .rightCommand])!.shouldConsumeEvent)
-        // fn is load-bearing for fn+arrow, fn+delete and the emoji picker.
         #expect(!Hotkey([.fn])!.shouldConsumeEvent)
-        // A left-hand modifier is live in shortcuts the user already has.
         #expect(!Hotkey([.leftControl])!.shouldConsumeEvent)
-        // One unsafe key taints the whole chord.
         #expect(!Hotkey([.fn, .rightControl])!.shouldConsumeEvent)
     }
 
@@ -107,8 +101,7 @@ struct HotkeyTests {
 
     @Test("A preference written by the three-preset version still loads")
     func legacyValuesMigrate() {
-        // These are the exact strings the old `PushToTalkKey` enum persisted. Failing to
-        // parse them would silently reset the user's key on upgrade.
+        // The exact strings the old enum persisted; failing to parse them resets the user's key.
         #expect(Hotkey(storageValue: "fn") == Hotkey([.fn]))
         #expect(Hotkey(storageValue: "rightOption") == Hotkey([.rightOption]))
         #expect(Hotkey(storageValue: "rightCommand") == Hotkey([.rightCommand]))
@@ -116,7 +109,6 @@ struct HotkeyTests {
 
     @Test("Junk in storage is rejected rather than half-parsed")
     func invalidStorageIsNil() {
-        // Partial parsing is the danger: "fn+banana" must not quietly become plain fn.
         #expect(Hotkey(storageValue: "fn+banana") == nil)
         #expect(Hotkey(storageValue: "") == nil)
         #expect(Hotkey(storageValue: "+") == nil)

@@ -44,18 +44,7 @@ actor AppleSpeechEngine: TranscriptionEngine {
         let (inputStream, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
         self.inputContinuation = inputContinuation
 
-        // Bias the recognizer toward the dictionary's words — and the recurring names the
-        // learner mined from past transcripts — before it hears anything. This
-        // is a nudge, not a guarantee — `DictionaryCorrector` is the pass that actually
-        // enforces spelling — but it's free and it catches things a post-hoc rewrite can't,
-        // like a name the engine would otherwise split into two ordinary words.
-        //
-        // The list is capped at `DictionaryCorrector.biasLimit`. A long context list makes
-        // these models drift: on quiet or ambiguous audio they start emitting the terms they
-        // were primed with, which is a far worse failure than the misspelling it prevents.
-        // Only the input-sequence initializers take a context up front, and this analyzer is
-        // fed by `analyzer.start(inputSequence:)` later — so the context is applied here
-        // instead. It must be set before any audio arrives to affect recognition.
+        // Bias toward the dictionary and learned names, capped. See AGENTS.md.
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         self.analyzer = analyzer
         if let context = await Self.context() {
@@ -66,7 +55,6 @@ actor AppleSpeechEngine: TranscriptionEngine {
 
         let (chunks, chunkContinuation) = AsyncThrowingStream<TranscriptionChunk, Error>.makeStream()
 
-        // Drain the transcriber's results into our simpler chunk stream.
         resultsTask = Task { [weak self] in
             do {
                 for try await result in transcriber.results {

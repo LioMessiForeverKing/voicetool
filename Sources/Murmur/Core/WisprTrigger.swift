@@ -18,7 +18,7 @@ enum WisprTrigger {
     /// Wispr stores its shortcuts by keycode in
     /// `~/Library/Application Support/Wispr Flow/config.json` under `prefs.user.shortcuts`,
     /// so that file is the source of truth if this ever needs re-checking.
-    static let keyCode = CGKeyCode(kVK_Command) // 55, left Command
+    static let keyCode = CGKeyCode(kVK_Command)
 
     /// The device-specific left-Command bit. macOS reports plain `.maskCommand` for either
     /// side, so an app that distinguishes left from right — as Wispr does, since it binds

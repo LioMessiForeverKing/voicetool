@@ -18,17 +18,22 @@ public enum ModifierKey: String, CaseIterable, Codable, Sendable {
     case leftShift, rightShift
     case leftCommand, rightCommand
 
+    /// The device-dependent modifier bit for this key.
+    ///
+    /// Each value is the `NX_DEVICE<KEY>KEYMASK` constant of the same name from IOKit's
+    /// `IOLLEvent.h`, which Swift does not import, so they are written out here. `fn` is the
+    /// exception: it uses `kCGEventFlagMaskSecondaryFn`.
     public var mask: UInt64 {
         switch self {
-        case .leftControl: 0x0000_0001   // NX_DEVICELCTLKEYMASK
-        case .leftShift: 0x0000_0002     // NX_DEVICELSHIFTKEYMASK
-        case .rightShift: 0x0000_0004    // NX_DEVICERSHIFTKEYMASK
-        case .leftCommand: 0x0000_0008   // NX_DEVICELCMDKEYMASK
-        case .rightCommand: 0x0000_0010  // NX_DEVICERCMDKEYMASK
-        case .leftOption: 0x0000_0020    // NX_DEVICELALTKEYMASK
-        case .rightOption: 0x0000_0040   // NX_DEVICERALTKEYMASK
-        case .rightControl: 0x0000_2000  // NX_DEVICERCTLKEYMASK
-        case .fn: 0x0080_0000            // kCGEventFlagMaskSecondaryFn
+        case .leftControl: 0x0000_0001
+        case .leftShift: 0x0000_0002
+        case .rightShift: 0x0000_0004
+        case .leftCommand: 0x0000_0008
+        case .rightCommand: 0x0000_0010
+        case .leftOption: 0x0000_0020
+        case .rightOption: 0x0000_0040
+        case .rightControl: 0x0000_2000
+        case .fn: 0x0080_0000
         }
     }
 

@@ -25,8 +25,7 @@ struct PushToTalkGestureTests {
     func holdStopsImmediately() {
         let gesture = PushToTalkGesture()
         #expect(gesture.press(at: at(0)) == .begin)
-        // The whole point: a real hold never waits for a possible second tap, so the
-        // latency the user feels on release is unchanged by this feature existing.
+        // A real hold never waits for a second tap, so release latency is unchanged.
         #expect(gesture.release(at: at(held)) == .end)
         #expect(!gesture.isLatched)
     }
@@ -47,8 +46,7 @@ struct PushToTalkGestureTests {
     func doubleTapLatches() {
         let gesture = PushToTalkGesture()
         #expect(gesture.press(at: at(0)) == .begin)
-        // Not `.end`: stopping here would discard the first tap's audio and the double-tap
-        // would produce a stub recording plus a new one, instead of one continuous take.
+        // Not `.end`: stopping here would discard the first tap's audio and split the take.
         #expect(gesture.release(at: at(tapped)) == .armTapTimer)
         #expect(gesture.press(at: at(tapped + 0.1)) == .latch)
         #expect(gesture.isLatched)
@@ -74,7 +72,6 @@ struct PushToTalkGestureTests {
 
         #expect(gesture.press(at: at(30)) == .end)
         #expect(!gesture.isLatched)
-        // And a plain hold works again straight afterwards.
         #expect(gesture.release(at: at(30.05)) == .none)
         #expect(gesture.press(at: at(31)) == .begin)
     }
@@ -90,8 +87,7 @@ struct PushToTalkGestureTests {
 
     @Test("The timer is inert once a second tap has latched")
     func timerAfterLatchDoesNothing() {
-        // The dangerous ordering: the armed stop must not fire underneath a latched
-        // recording. The caller cancels the timer, but a late fire must be harmless too.
+        // The armed stop must not fire underneath a latched recording, even late.
         let gesture = PushToTalkGesture()
         _ = gesture.press(at: at(0))
         _ = gesture.release(at: at(tapped))
@@ -122,7 +118,6 @@ struct PushToTalkGestureTests {
 
     @Test("A repeated press without a release is ignored")
     func duplicatePressIsIgnored() {
-        // Restarting a recording that is already running would drop whatever was said so far.
         let gesture = PushToTalkGesture()
         #expect(gesture.press(at: at(0)) == .begin)
         #expect(gesture.press(at: at(0.1)) == .none)
@@ -138,8 +133,7 @@ struct PushToTalkGestureTests {
 
     @Test("Reset clears a latch")
     func resetClearsLatch() {
-        // Stopping from the Record button while latched must not leave the gesture
-        // believing it is still recording, or the next tap would read as "stop".
+        // Stopping from the button while latched must not leave the gesture believing it records.
         let gesture = PushToTalkGesture()
         _ = gesture.press(at: at(0))
         _ = gesture.release(at: at(tapped))

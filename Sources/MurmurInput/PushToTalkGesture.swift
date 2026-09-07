@@ -74,9 +74,7 @@ public final class PushToTalkGesture {
             return .begin
 
         case .awaitingSecondTap:
-            // Second tap of a double-tap. The recording started by the first tap simply
-            // continues — this deliberately does not stop and restart, so a double-tap
-            // yields one continuous take rather than a discarded stub plus a new recording.
+            // The first tap's recording continues, so a double-tap yields one continuous take.
             state = .latched
             return .latch
 
@@ -85,8 +83,7 @@ public final class PushToTalkGesture {
             return .end
 
         case .holding:
-            // No matching release seen. Physically shouldn't happen; ignoring it is safer
-            // than restarting a recording that is already running.
+            // No matching release: ignoring is safer than restarting a running recording.
             return .none
         }
     }
@@ -102,7 +99,6 @@ public final class PushToTalkGesture {
             return .armTapTimer
 
         case .latched:
-            // The release that follows the latching tap, and every release after it.
             return .none
 
         case .idle, .awaitingSecondTap:

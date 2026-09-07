@@ -2,8 +2,7 @@
 import AppKit
 import Foundation
 
-// Renders AppIcon.icns from code — no design tool, no binary asset to keep in sync with
-// the HUD palette. Run: swift Tools/makeicon.swift
+// Renders AppIcon.icns from code. Run: swift Tools/makeicon.swift
 
 // Matches `Brand` in HUDView.swift. Change both together.
 let accent = NSColor(srgbRed: 0.42, green: 0.55, blue: 1.00, alpha: 1)
@@ -23,8 +22,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     ctx.setShouldAntialias(true)
     ctx.interpolationQuality = .high
 
-    // macOS Big Sur+ icon grid: art occupies the middle ~82%, leaving the shadow gutter
-    // the system expects.
+    // Big Sur+ icon grid: art occupies the middle ~82%, leaving the shadow gutter.
     let inset = size * 0.09
     let rect = CGRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)
     // Apple's squircle is ~22.37% of the tile's edge.
@@ -32,7 +30,7 @@ func drawIcon(size: CGFloat) -> NSImage {
 
     let squircle = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
 
-    // Drop shadow under the tile.
+    // MARK: Drop shadow under the tile
     ctx.saveGState()
     ctx.setShadow(
         offset: CGSize(width: 0, height: -size * 0.012),
@@ -44,7 +42,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     ctx.fillPath()
     ctx.restoreGState()
 
-    // Diagonal brand gradient.
+    // MARK: Diagonal brand gradient
     ctx.saveGState()
     ctx.addPath(squircle)
     ctx.clip()
@@ -77,7 +75,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     )
     ctx.restoreGState()
 
-    // Waveform mark.
+    // MARK: Waveform mark
     let barWidth = rect.width * 0.072
     let gap = rect.width * 0.050
     let totalWidth = CGFloat(bars.count) * barWidth + CGFloat(bars.count - 1) * gap
@@ -122,8 +120,7 @@ func png(_ image: NSImage, pixels: Int) -> Data? {
 
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    // Redraw at native pixel size rather than scaling a single render — keeps the small
-    // sizes crisp instead of muddy.
+    // Redrawn at native pixel size rather than scaled, so small sizes stay crisp.
     drawIcon(size: CGFloat(pixels)).draw(
         in: NSRect(x: 0, y: 0, width: pixels, height: pixels),
         from: .zero, operation: .sourceOver, fraction: 1
@@ -139,7 +136,6 @@ let iconset = root.appendingPathComponent("Resources/AppIcon.iconset")
 try? fm.removeItem(at: iconset)
 try fm.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-// (point size, scale) pairs iconutil expects.
 let variants: [(Int, Int)] = [
     (16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2),
     (256, 1), (256, 2), (512, 1), (512, 2),

@@ -56,7 +56,6 @@ struct FoundationModelFormatter: TextFormatter {
                     try await Task.sleep(for: timeout)
                     throw CleanupError.timedOut
                 }
-                // Whichever finishes first wins; cancel the loser.
                 guard let first = try await group.next() else { throw CleanupError.timedOut }
                 group.cancelAll()
                 return first
@@ -156,14 +155,8 @@ struct FoundationModelFormatter: TextFormatter {
             return false
         }
 
-        // 2. Length sanity, as a backstop for the case where the model obeys an injected
-        //    instruction using only words from the input ("write the word banana" → "Banana").
-        //
-        //    Measured against the *filler-discounted* input, not the raw one. A raw ratio
-        //    conflates "the model truncated my sentence" with "the input was 80% filler and
-        //    was legitimately cut in half" — with a raw denominator those two land at 0.14
-        //    and 0.21, too close to separate. Discounting fillers on both sides pushes the
-        //    real cleanups to 0.6–1.0 and leaves the failures below 0.2.
+        // 2. Length sanity, measured against the filler-discounted input so a truncation
+        //    is separable from a legitimately terse cleanup.
         let ratio = Double(cleanedTokens.count) / Double(max(1, spokenWordCount(original)))
         guard ratio >= 0.35, ratio <= 1.5 else {
             Log.speech.info("cleanup rejected — length ratio \(ratio, format: .fixed(precision: 2))")

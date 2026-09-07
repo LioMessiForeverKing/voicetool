@@ -8,7 +8,6 @@ enum DashboardHTML {
             .map { engine, runs in EngineSummary(engine: engine, runs: runs) }
             .sorted { $0.engine < $1.engine }
 
-        // Comparison groups first — they're the reason this page exists.
         let groups = Dictionary(grouping: runs.filter { $0.group != nil }, by: { $0.group! })
             .sorted { ($0.value.first?.date ?? .distantPast) > ($1.value.first?.date ?? .distantPast) }
         let ungrouped = runs.filter { $0.group == nil }

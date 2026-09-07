@@ -35,15 +35,7 @@ enum WisprReader {
     static func result(after holdStarted: Date, timeout: TimeInterval) async -> ComparisonResult? {
         guard isInstalled else { return nil }
 
-        // Wispr stamps a row with the START of the utterance, not the end — and the two
-        // hotkeys are never pressed on the same millisecond, so its row is routinely stamped
-        // slightly *before* our hold began. Searching forward from the hold start therefore
-        // skipped the matching row every time.
-        //
-        // The window is bounded on both sides rather than just widened backwards: Wispr
-        // creates the row (with null text) when the utterance starts and fills the text in
-        // afterwards, so an open-ended search would happily return the *previous*
-        // dictation's row on the first poll and report it as this one's result.
+        // Wispr stamps the utterance start, so the window is bounded both sides. See AGENTS.md.
         let lower = utcStamp(holdStarted.addingTimeInterval(-Self.startStampGrace))
         let upper = utcStamp(holdStarted.addingTimeInterval(Self.startStampGrace))
         let deadline = Date().addingTimeInterval(timeout)
@@ -65,9 +57,7 @@ enum WisprReader {
 
     private static func fetchRow(between lower: String, and upper: String) -> ComparisonResult? {
         var db: OpaquePointer?
-        // Read-only, and with the URI flag so the connection can never be upgraded to a
-        // writer. `immutable` is deliberately NOT set — it would cache the file and hide
-        // the rows Wispr is writing while we poll.
+        // Read-only via URI. `immutable` is deliberately unset: it would cache away live rows.
         let uri = "file:\(databaseURL.path)?mode=ro"
         guard sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else {
             sqlite3_close(db)
@@ -75,8 +65,6 @@ enum WisprReader {
         }
         defer { sqlite3_close(db) }
 
-        // formattedText is Wispr's post-cleanup output and asrText is raw; prefer the
-        // former but fall back, since the cleanup can still be in flight.
         let sql = """
             SELECT COALESCE(NULLIF(formattedText, ''), asrText), duration, e2eLatency
             FROM History
@@ -99,8 +87,7 @@ enum WisprReader {
         let text = String(cString: raw).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
 
-        // e2eLatency is milliseconds and covers a network round trip — it is not comparable
-        // to the local engines' compute time, and the UI labels it accordingly.
+        // e2eLatency includes a network round trip, so it is not comparable to local compute.
         return ComparisonResult(
             engine: "Wispr Flow",
             text: text,

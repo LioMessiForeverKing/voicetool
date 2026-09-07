@@ -98,7 +98,7 @@ enum RunLog {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard var line = try? encoder.encode(run) else { return }
-        line.append(0x0A) // newline
+        line.append(UInt8(ascii: "\n"))
 
         if let handle = try? FileHandle(forWritingTo: runsURL) {
             defer { try? handle.close() }

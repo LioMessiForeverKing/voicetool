@@ -55,8 +55,7 @@ final class LaunchAtLogin {
 
         revision += 1
 
-        // Checked *after* the bump, because the interesting case is a `register()` that
-        // succeeded and still left the item inactive pending the user's approval.
+        // Checked after the bump: the interesting case is a register() still awaiting approval.
         if problem == nil, enabled, status != .enabled {
             problem = Self.describe(status)
         }
@@ -70,9 +69,7 @@ final class LaunchAtLogin {
         case .requiresApproval:
             return "Approve Murmur in System Settings ▸ General ▸ Login Items."
         case .notFound:
-            // Registration resolves the *running* bundle, and macOS won't accept one from
-            // a transient location. `make install` puts it in /Applications; a copy run
-            // straight out of the build cache lands here.
+            // Registration resolves the running bundle, and macOS rejects a transient location.
             return "macOS can't register this copy. Run it from /Applications."
         case .notRegistered:
             return "The login item isn't registered."
