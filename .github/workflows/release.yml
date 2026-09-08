@@ -1,0 +1,168 @@
+name: Release
+
+# Gatekeeper refuses a downloaded .app unless it is signed with a Developer ID, notarized
+# by Apple and stapled. This workflow is the only place that happens: `make app` locally
+# falls back to a self-signed identity that is trusted on one Mac and nowhere else.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  KEYCHAIN: /tmp/murmur-signing.keychain-db
+  STAGE: /tmp/murmur-stage
+  APP: /tmp/murmur-stage/Murmur.app
+
+jobs:
+  release:
+    name: Build, notarize & publish
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same reason as the macOS workflow: the image default is Swift 6.1, which cannot
+      # parse a swift-tools-version 6.2 manifest.
+      - name: Select the newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $latest"
+          sudo xcode-select -s "$latest/Contents/Developer"
+
+      # A tag that disagrees with the bundle ships a download labelled with a version the
+      # app itself will never report. Catch it before anything is signed.
+      - name: Check the tag matches the bundle version
+        id: version
+        run: |
+          plist=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          echo "version=$plist" >> "$GITHUB_OUTPUT"
+          echo "zip=Murmur-$plist.zip" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$plist" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME claims $tag but Info.plist says $plist."
+              exit 1
+            fi
+          fi
+          echo "Version $plist"
+
+      - name: Import the Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ]; then
+            echo "::error::MACOS_CERT_P12 is unset. See README ▸ Releasing for the five secrets."
+            exit 1
+          fi
+          pw=$(uuidgen)
+          security create-keychain -p "$pw" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$pw" "$KEYCHAIN"
+          echo "$CERT_P12" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f /tmp/cert.p12
+          # Without this, codesign blocks on a GUI prompt for the private key and the job
+          # hangs until it times out rather than failing.
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+            echo "::error::No Developer ID Application identity after import."
+            security find-identity -v -p codesigning
+            exit 1
+          fi
+
+      # CONFIG=release because debug is the local default, and a secure timestamp because
+      # notarization rejects a signature without one.
+      - name: Build and sign the app
+        run: make app CONFIG=release SIGN_TIMESTAMP=--timestamp STAGE="$STAGE"
+
+      # The Makefile falls back to a local identity and then to ad-hoc when it finds no
+      # Developer ID, so an unchecked build here would ship something Gatekeeper rejects.
+      - name: Verify the signature before submitting it
+        run: |
+          codesign --verify --strict --verbose=2 "$APP"
+          info=$(codesign -dvvv "$APP" 2>&1)
+          echo "$info"
+          check() {
+            echo "$info" | grep -q "$1" || { echo "::error::$2"; exit 1; }
+          }
+          check "Authority=Developer ID Application" "Not signed with a Developer ID."
+          check "^Timestamp=" "No secure timestamp; notarization would reject this."
+          check "flags=.*runtime" "Hardened runtime missing; notarization would reject this."
+
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent "$APP" /tmp/notarize.zip
+          set +e
+          xcrun notarytool submit /tmp/notarize.zip \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" \
+            --wait --output-format json > /tmp/submit.json
+          set -e
+          cat /tmp/submit.json
+          id=$(jq -r '.id // empty' /tmp/submit.json 2>/dev/null || true)
+          status=$(jq -r '.status // "unknown"' /tmp/submit.json 2>/dev/null || echo unknown)
+          # The submission log is the only place Apple names *which* rule failed; without
+          # it a rejection is an opaque "Invalid".
+          if [ "$status" != "Accepted" ]; then
+            if [ -n "$id" ]; then
+              xcrun notarytool log "$id" \
+                --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
+            fi
+            echo "::error::Notarization returned $status."
+            exit 1
+          fi
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+
+      # Stapling mutates the bundle, so the shipped archive has to be made after it, not
+      # before. Quarantining a fresh copy is the closest CI gets to a real download.
+      - name: Package and confirm Gatekeeper accepts a downloaded copy
+        run: |
+          ditto -c -k --keepParent "$APP" "${{ steps.version.outputs.zip }}"
+          rm -rf /tmp/gate && mkdir -p /tmp/gate
+          ditto -x -k "${{ steps.version.outputs.zip }}" /tmp/gate
+          xattr -w com.apple.quarantine "0083;00000000;Safari;" /tmp/gate/Murmur.app
+          spctl -a -t exec -vv /tmp/gate/Murmur.app 2>&1 | tee /tmp/spctl.txt
+          if ! grep -q "source=Notarized Developer ID" /tmp/spctl.txt; then
+            echo "::error::Gatekeeper did not accept the archive as a notarized download."
+            exit 1
+          fi
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Murmur-macos
+          path: ${{ steps.version.outputs.zip }}
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP: ${{ steps.version.outputs.zip }}
+          NOTES: |
+            Push-to-talk dictation for macOS, fully on-device. **Requires macOS 26.**
+
+            1. Download the `.zip` below, unzip it, and drag **Murmur.app** into Applications.
+            2. Open it and allow **Microphone** when asked.
+            3. Turn on **Murmur** in System Settings > Privacy & Security > Accessibility,
+               then quit and reopen it.
+            4. Hold **Right Option** and talk. Change the key in Settings.
+
+            Signed with a Developer ID and notarized by Apple, so it opens without a warning.
+        run: |
+          printf '%s\n' "$NOTES" > /tmp/notes.md
+          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "Murmur $VERSION" --notes-file /tmp/notes.md

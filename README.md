@@ -8,6 +8,18 @@ and learns the names you actually say. The LLM cleanup tier is optional and on-d
 
 ---
 
+## Install
+
+**Requires macOS 26.** Grab the newest `.zip` from
+[Releases](https://github.com/LioMessiForeverKing/voicetool/releases), unzip it, and drag
+**Murmur.app** into Applications. Releases are signed with a Developer ID and notarized by
+Apple, so it opens without a Gatekeeper warning — no `xattr` incantation, no right-click
+Open. Then grant the two permissions below and hold **Right ⌥**.
+
+To build it yourself instead, see [Quick start](#quick-start).
+
+---
+
 ## Coexisting with another dictation app
 
 This app is built to run alongside other dictation tools without colliding with them, which
@@ -177,8 +189,41 @@ change.
    real palette, HUD motion design, onboarding.
 5. **Onboarding.** A first-run window that walks through both permissions instead of
    relying on the menu's "Grant…" items.
-6. **Developer ID signing + notarization.** Ends the TCC-reset churn and makes the app
-   distributable.
+
+---
+
+## Releasing
+
+Tag a commit and `.github/workflows/release.yml` builds `CONFIG=release`, signs with the
+Developer ID, notarizes, staples, and publishes the `.zip` to Releases:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The tag must match `CFBundleShortVersionString` in `Resources/Info.plist` or the workflow
+stops before signing anything. `workflow_dispatch` runs everything except the publish, so
+the whole path can be rehearsed without spending a version number.
+
+Five repository secrets drive it. Set them with `gh secret set`; none of them belong in the
+repo:
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERT_P12` | The Developer ID Application certificate, exported as `.p12`, base64-encoded |
+| `MACOS_CERT_PASSWORD` | The password set when exporting that `.p12` |
+| `APPLE_ID` | Apple ID of the Developer Program account |
+| `APPLE_APP_PASSWORD` | App-specific password from appleid.apple.com, for `notarytool` |
+| `APPLE_TEAM_ID` | The 10-character team ID, also in the certificate's common name |
+
+**An app-specific password, not an App Store Connect API key.** The key is the sturdier
+credential and is what Apple documents first, but it adds a third secret file to manage for
+a repo that publishes one artifact from one workflow. Revisit if notarization ever moves
+off a single personal Apple ID.
+
+**Local builds are unaffected.** `SIGN_TIMESTAMP` defaults to `--timestamp=none` so `make`
+still works offline; only the release overrides it, because notarization rejects a
+signature with no secure timestamp.
 
 ---
 

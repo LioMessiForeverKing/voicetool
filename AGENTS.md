@@ -234,6 +234,12 @@ there is no `security` incantation that does the whole job unattended. Confirm i
 `security find-identity -v -p codesigning`, then `make install` and re-grant Accessibility
 one final time.
 
+**Releases are signed and notarized in CI, never by hand.** `.github/workflows/release.yml`
+owns that path. It overrides two Makefile variables: `SIGN_TIMESTAMP`, because notarization
+rejects a signature carrying no secure timestamp, and `STAGE`, so the bundle lands where the
+workflow can find it. Don't sign a release locally to save time; the workflow's Gatekeeper
+check is the only thing standing between a bad signature and a download nobody can open.
+
 **`log` may be shadowed in the user's shell.** Use `/usr/bin/log` explicitly.
 
 **Don't run the `.app` from the repo folder.** It's iCloud-synced and the sync engine can
@@ -329,8 +335,8 @@ lookahead, `\p{L}`, and `$1`–`$9` in replacements. Nothing else.
 
 1. **Command Mode** — select text, hold a second key, "make this more formal."
 2. **Onboarding** — a first-run window walking through the macOS permissions.
-3. **Notarization** (macOS) and **code signing** (Windows). Both apps are unsigned for
-   distribution, so Windows users will meet SmartScreen.
+3. **Code signing on Windows.** That build is still unsigned for distribution, so users
+   will meet SmartScreen. macOS releases are notarized — see README ▸ Releasing.
 4. **An installer** for Windows, and model download from inside the app rather than by
    following `docs/PARAKEET-WINDOWS.md` by hand.
 

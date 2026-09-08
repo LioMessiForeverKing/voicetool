@@ -37,6 +37,11 @@ CONTENTS := $(BUNDLE)/Contents
 ##                           untrusted.
 LOCAL_SIGN_ID := Murmur Local Signing
 
+## Notarization requires a secure timestamp from Apple's timestamp server. Local builds
+## neither need one nor should depend on the network, so the release workflow overrides
+## this with `--timestamp`.
+SIGN_TIMESTAMP := --timestamp=none
+
 SIGN_ID := $(shell security find-identity -v -p codesigning 2>/dev/null \
              | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)".*/\1/')
 ifeq ($(strip $(SIGN_ID)),)
@@ -76,7 +81,7 @@ app: build
 	@codesign --force --sign "$(SIGN_ID)" \
 		--entitlements Resources/$(EXEC).entitlements \
 		--options runtime \
-		--timestamp=none \
+		$(SIGN_TIMESTAMP) \
 		"$(BUNDLE)"
 	@echo "built $(BUNDLE)  [signed: $(SIGN_ID)]"
 
