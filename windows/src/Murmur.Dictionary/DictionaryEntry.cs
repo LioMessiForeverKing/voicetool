@@ -71,30 +71,6 @@ public sealed record DictionaryEntry
 /// </remarks>
 public sealed record DictionaryWarning(string Message)
 {
-    /// <summary>
-    /// Ordinary English words that would fire constantly if used as a whole trigger.
-    /// Deliberately short — this catches the obvious foot-guns, not every possible one.
-    /// Kept byte-identical to the Swift list so both platforms warn about the same things.
-    /// </summary>
-    private static readonly HashSet<string> Common = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "a", "about", "all", "also", "and", "any", "are", "as", "at", "back", "be", "because",
-        "but", "by", "call", "can", "case", "check", "class", "close", "cloud", "code", "come",
-        "could", "data", "day", "did", "do", "does", "down", "each", "even", "file", "find",
-        "first", "for", "from", "get", "give", "go", "good", "great", "group", "had", "has",
-        "have", "he", "her", "here", "him", "his", "how", "if", "in", "into", "is", "it",
-        "its", "just", "key", "know", "like", "line", "list", "look", "make", "man", "many",
-        "may", "me", "more", "most", "my", "need", "new", "no", "not", "now", "number", "of",
-        "off", "on", "one", "only", "open", "or", "other", "our", "out", "over", "page",
-        "part", "people", "point", "put", "read", "right", "run", "said", "same", "say",
-        "see", "set", "she", "should", "show", "side", "so", "some", "state", "still", "such",
-        "take", "team", "test", "than", "that", "the", "their", "them", "then", "there",
-        "these", "they", "thing", "think", "this", "time", "to", "two", "type", "up", "us",
-        "use", "user", "very", "want", "was", "way", "we", "well", "were", "what", "when",
-        "where", "which", "who", "will", "with", "word", "work", "would", "year", "you",
-        "your",
-    };
-
     private static readonly char[] PhraseSeparators = [' ', '-', '\t'];
 
     /// <summary>Checks an entry for patterns likely to fire on unintended text.</summary>
@@ -114,7 +90,7 @@ public sealed record DictionaryWarning(string Message)
         if (words.Length == 1)
         {
             var only = words[0];
-            if (Common.Contains(only))
+            if (CommonWords.All.Contains(only))
             {
                 warnings.Add(new DictionaryWarning(
                     $"“{trigger}” is an ordinary word. This will rewrite every use of it, "
@@ -134,5 +110,31 @@ public sealed record DictionaryWarning(string Message)
         }
 
         return warnings;
+    }
+
+    /// <summary>Warns when an entry can only ever be matched literally.</summary>
+    /// <param name="entry">The entry to inspect.</param>
+    /// <returns>One warning, or empty when the entry can be sound-matched.</returns>
+    /// <remarks>
+    /// Sound-matching is what lets one entry cover every way an engine can fumble a name. A
+    /// phrase that sounds like ordinary speech can't have it — rewriting everything that sounds
+    /// like "Ayen" also rewrites "I am" and "is on" — and the entry would otherwise sit there
+    /// looking like it worked. Telling the user costs a line; letting them find out costs trust.
+    /// </remarks>
+    public static IReadOnlyList<DictionaryWarning> CheckSoundMatching(DictionaryEntry entry)
+    {
+        var phrase = (entry.Kind == EntryKind.Term ? entry.Write : entry.Hear).Trim();
+        if (phrase.Length == 0 || PhoneticKey.IsDistinctive(phrase)) return [];
+
+        var advice = entry.Kind == EntryKind.Term
+            ? $"Add a correction — when you hear X, write “{phrase}” — for each way it comes out wrong."
+            : "It will still be corrected exactly as written.";
+
+        return
+        [
+            new DictionaryWarning(
+                $"“{phrase}” sounds like ordinary speech, so it can only be matched "
+                + "letter for letter, not by sound. " + advice),
+        ];
     }
 }

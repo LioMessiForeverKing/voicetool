@@ -166,6 +166,20 @@ transitions depending on the order the user pressed them in.
 these models drift: on quiet or ambiguous audio they begin emitting the terms they were primed
 with, which is a worse failure than the misspelling the biasing prevents.
 
+**A dictionary phrase that sounds like ordinary speech is never sound-matched.** The phonetic
+pass rewrites spans by `PhoneticKey`, which is what lets one entry catch every way an engine
+fumbles a name. It is gated by `PhoneticKey.isDistinctive`, and the gate is not optional: the
+code for "Ayen" is also the code for "I am", "is on" and "a yen", so an ungated pass rewrites
+ordinary speech 498 ways over a common-English corpus. Naming a trigger yourself does not lift
+the gate — "I in -> Ayen" turns every "I am" into a name. Rejected entries keep their literal
+rule and lose only the sound-alike family.
+
+**`PhoneticKey` must produce identical codes on both platforms.** It is NYSIIS with three
+deliberate departures — no truncation, soft `C` codes as `S`, and a leading vowel folds to `A`.
+The trailing-`S`, trailing-`AY` and trailing-`A` rules of published NYSIIS are dropped: they
+make surname variants collide, and with them "Ian is" coded the same as "Ian", so the pass ate
+the following word. `PhoneticKeyTests` pins the codes on both sides.
+
 **The HUD panel and its content must size from the same tokens.** `HUDPanel` sizes its window from
 `DS.Material.hudWidth` and `hudHeight`. Duplicating those numbers is how the capsule ends up
 off-centre inside its own window.
