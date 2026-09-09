@@ -122,7 +122,7 @@ public static class PhoneticKey
 
         if (Matches(body, index, "EV")) return ("AF", 2);
         if (IsVowel(c)) return ("A", 1);
-        if (c == 'C' && index + 1 < body.Length && "EIY".IndexOf(body[index + 1]) >= 0) return ("S", 1);
+        if (c == 'C' && index + 1 < body.Length && "EIY".Contains(body[index + 1])) return ("S", 1);
         if (c == 'Q') return ("G", 1);
         if (c == 'Z') return ("S", 1);
         if (c == 'M') return ("N", 1);
@@ -144,7 +144,7 @@ public static class PhoneticKey
         return (c.ToString(CultureInfo.InvariantCulture), 1);
     }
 
-    private static bool IsVowel(char c) => Vowels.IndexOf(c) >= 0;
+    private static bool IsVowel(char c) => Vowels.Contains(c);
 
     private static bool Matches(string body, int index, string pattern) =>
         index + pattern.Length <= body.Length
