@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         // Optional at runtime: Apple's SpeechTranscriber is the default and needs no dependency.
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.15.6")
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.15.6"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.4"),
     ],
     targets: [
         // Its own target: directly testable, and a cross-platform contract shared with the C# side.
@@ -27,10 +28,14 @@ let package = Package(
                 "MurmurDictionary",
                 "MurmurInput",
                 .product(name: "FluidAudio", package: "FluidAudio"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "Sources/Murmur",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
             ]
         ),
         .testTarget(
@@ -42,6 +47,11 @@ let package = Package(
         .testTarget(
             name: "MurmurDesignTests",
             path: "Tests/MurmurDesignTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "MurmurUpdateTests",
+            path: "Tests/MurmurUpdateTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

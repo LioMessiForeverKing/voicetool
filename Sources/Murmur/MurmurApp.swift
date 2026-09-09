@@ -16,6 +16,8 @@ struct MurmurApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Updates.shared.check() }
+                    .disabled(!Updates.shared.canCheck)
                 Button("Reveal Dictionary File") {
                     NSWorkspace.shared.activateFileViewerSelecting([DictionaryStore.fileURL])
                 }
@@ -61,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Written up front so the menu item always opens something.
         RunLog.regenerate()
+
+        Updates.start()
 
         // Warmed in the background so the first hold does not stall. See AGENTS.md.
         let willUseParakeet = Settings.shared.compareMode || Settings.shared.engine == .parakeet
@@ -233,6 +237,9 @@ private struct MenuContent: View {
         if !Permissions.hasMicrophone {
             Button("Grant Microphone…") { Permissions.openMicrophoneSettings() }
         }
+
+        Button("Check for Updates…") { Updates.shared.check() }
+            .disabled(!Updates.shared.canCheck)
 
         Button("Quit Murmur") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
