@@ -192,7 +192,9 @@ private struct DictionaryEditor: View {
         )
     }
 
-    private var warnings: [DictionaryWarning] { DictionaryWarning.check(draft) }
+    private var warnings: [DictionaryWarning] {
+        DictionaryWarning.check(draft) + DictionaryWarning.checkSoundMatching(draft)
+    }
 
     private var isValid: Bool {
         !draft.write.isEmpty && (kind == .term || !draft.hear.isEmpty)

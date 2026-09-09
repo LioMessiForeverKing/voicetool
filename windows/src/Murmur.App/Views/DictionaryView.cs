@@ -302,7 +302,8 @@ public sealed class DictionaryEditorWindow : Window
     {
         _warnings.Children.Clear();
 
-        foreach (var warning in DictionaryWarning.Check(Draft))
+        foreach (var warning in DictionaryWarning.Check(Draft)
+                     .Concat(DictionaryWarning.CheckSoundMatching(Draft)))
         {
             _warnings.Children.Add(new Border
             {

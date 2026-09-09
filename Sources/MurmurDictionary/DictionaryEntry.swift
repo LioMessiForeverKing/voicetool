@@ -60,26 +60,6 @@ public struct DictionaryWarning: Identifiable, Sendable {
     public var id: String { message }
     public let message: String
 
-    /// Ordinary English words that would fire constantly if used as a whole trigger.
-    /// Deliberately short — this catches the obvious foot-guns, not every possible one.
-    private static let common: Set<String> = [
-        "a", "about", "all", "also", "and", "any", "are", "as", "at", "back", "be", "because",
-        "but", "by", "call", "can", "case", "check", "class", "close", "cloud", "code", "come",
-        "could", "data", "day", "did", "do", "does", "down", "each", "even", "file", "find",
-        "first", "for", "from", "get", "give", "go", "good", "great", "group", "had", "has",
-        "have", "he", "her", "here", "him", "his", "how", "if", "in", "into", "is", "it",
-        "its", "just", "key", "know", "like", "line", "list", "look", "make", "man", "many",
-        "may", "me", "more", "most", "my", "need", "new", "no", "not", "now", "number", "of",
-        "off", "on", "one", "only", "open", "or", "other", "our", "out", "over", "page",
-        "part", "people", "point", "put", "read", "right", "run", "said", "same", "say",
-        "see", "set", "she", "should", "show", "side", "so", "some", "state", "still", "such",
-        "take", "team", "test", "than", "that", "the", "their", "them", "then", "there",
-        "these", "they", "thing", "think", "this", "time", "to", "two", "type", "up", "us",
-        "use", "user", "very", "want", "was", "way", "we", "well", "were", "what", "when",
-        "where", "which", "who", "will", "with", "word", "work", "would", "year", "you",
-        "your",
-    ]
-
     /// - Returns: warnings for `entry`, or empty if it looks safe.
     public static func check(_ entry: DictionaryEntry) -> [DictionaryWarning] {
         // Only the trigger side can misfire. A `.term` is never matched against text.
@@ -92,7 +72,7 @@ public struct DictionaryWarning: Identifiable, Sendable {
         let words = trigger.lowercased().split(whereSeparator: { $0 == " " || $0 == "-" })
 
         if words.count == 1, let only = words.first {
-            if common.contains(String(only)) {
+            if CommonWords.all.contains(String(only)) {
                 warnings.append(DictionaryWarning(
                     message: "“\(trigger)” is an ordinary word. This will rewrite every use of it, "
                         + "not just the ones you mean. Consider a longer phrase."
@@ -112,5 +92,26 @@ public struct DictionaryWarning: Identifiable, Sendable {
         }
 
         return warnings
+    }
+
+    /// - Returns: a warning when `entry` can only ever be matched literally, or empty.
+    ///
+    /// Sound-matching is what lets one entry cover every way an engine can fumble a name. A
+    /// phrase that sounds like ordinary speech can't have it — rewriting everything that
+    /// sounds like "Ayen" also rewrites "I am" and "is on" — and the entry would otherwise sit
+    /// there looking like it worked. Telling you costs a line; letting you find out costs trust.
+    public static func checkSoundMatching(_ entry: DictionaryEntry) -> [DictionaryWarning] {
+        let phrase = (entry.kind == .term ? entry.write : entry.hear)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phrase.isEmpty, !PhoneticKey.isDistinctive(phrase) else { return [] }
+
+        let advice = entry.kind == .term
+            ? "Add a correction — when you hear X, write “\(phrase)” — for each way it comes out wrong."
+            : "It will still be corrected exactly as written."
+
+        return [DictionaryWarning(
+            message: "“\(phrase)” sounds like ordinary speech, so it can only be matched "
+                + "letter for letter, not by sound. " + advice
+        )]
     }
 }

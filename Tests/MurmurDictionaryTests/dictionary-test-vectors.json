@@ -7,15 +7,26 @@
     "run every case below and produce exactly the stated output. A change to correction",
     "semantics starts here, not in either implementation.",
     "",
+    "The pass runs in two stages. The literal stage applies the correction pairs as typed.",
+    "The phonetic stage then rewrites spans that merely sound like something the dictionary",
+    "knows, so one entry covers every way an engine can fumble a name.",
+    "",
     "Rules under test:",
     "  1. Whole matches only  - a rule must never bite into a longer word.",
     "  2. Case-insensitive    - the trigger matches in any case; output is verbatim.",
     "  3. Longest match first - a longer trigger wins over a shorter overlapping one.",
     "  4. Glued words match   - parts may be separated by any number of spaces or hyphens,",
     "                           including none at all.",
-    "  5. Disabled is inert   - a disabled entry changes nothing."
+    "  5. Disabled is inert   - a disabled entry changes nothing.",
+    "  6. Sound-alikes match  - a span that codes to the same phonetic key is rewritten,",
+    "                           even across a word split the engine invented.",
+    "  7. Ordinary speech is  - a phrase that sounds like common English is matched literally",
+    "     never sound-matched   only, or the pass would rewrite 'I am' into somebody's name.",
+    "",
+    "Phonetic codes come from PhoneticKey (NYSIIS, untruncated, soft C, leading vowel folded",
+    "to A). Both implementations must agree character for character."
   ],
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "name": "basic phrase replacement",
@@ -225,7 +236,7 @@
       "expectedCorrections": []
     },
     {
-      "name": "a term entry never rewrites text",
+      "name": "a term entry leaves text that is already correct alone",
       "entries": [
         {
           "kind": "term",
@@ -345,6 +356,163 @@
       "expectedCorrections": [
         {
           "to": "Café Racer",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "a term is fixed when the engine mishears it",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Anthropic"
+        }
+      ],
+      "input": "I work at Anthropik today.",
+      "expected": "I work at Anthropic today.",
+      "expectedCorrections": [
+        {
+          "to": "Anthropic",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "a sound-alike match spans a word split the engine invented",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Vercel"
+        }
+      ],
+      "input": "we deployed on ver sell yesterday.",
+      "expected": "we deployed on Vercel yesterday.",
+      "expectedCorrections": [
+        {
+          "to": "Vercel",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "a term that sounds like ordinary speech is never sound-matched",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Ayen"
+        }
+      ],
+      "input": "I am in one of those.",
+      "expected": "I am in one of those.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "a correction trigger that sounds like ordinary speech is not expanded",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "I in",
+          "write": "Ayen"
+        }
+      ],
+      "input": "I am testing this.",
+      "expected": "I am testing this.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "such a correction still fires literally on the trigger it names",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "I in",
+          "write": "Ayen"
+        }
+      ],
+      "input": "when I in arrives.",
+      "expected": "when Ayen arrives.",
+      "expectedCorrections": [
+        {
+          "to": "Ayen",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "a disabled term is not sound-matched either",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Anthropic",
+          "isEnabled": false
+        }
+      ],
+      "input": "Anthropik ships.",
+      "expected": "Anthropik ships.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "a sound-alike span never reaches across punctuation",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Vercel"
+        }
+      ],
+      "input": "at ver. Sell it now.",
+      "expected": "at ver. Sell it now.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "a sound-alike that is already spelled correctly is left alone",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Anthropic"
+        }
+      ],
+      "input": "Anthropic makes models.",
+      "expected": "Anthropic makes models.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "each sound-alike span is counted",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Kubernetes"
+        }
+      ],
+      "input": "coobernetties and coobernetties again.",
+      "expected": "Kubernetes and Kubernetes again.",
+      "expectedCorrections": [
+        {
+          "to": "Kubernetes",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "the literal pass and the phonetic pass both run",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Kubernetes"
+        },
+        {
+          "kind": "correction",
+          "hear": "cloud code",
+          "write": "Claude Code"
+        }
+      ],
+      "input": "I use cloud code on coobernetties.",
+      "expected": "I use Claude Code on Kubernetes.",
+      "expectedCorrections": [
+        {
+          "to": "Claude Code",
+          "count": 1
+        },
+        {
+          "to": "Kubernetes",
           "count": 1
         }
       ]
