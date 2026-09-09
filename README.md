@@ -18,6 +18,16 @@ Open. Then grant the two permissions below and hold **Right ⌥**.
 
 To build it yourself instead, see [Quick start](#quick-start).
 
+### Updating
+
+From **0.3.0** onward Murmur updates itself: it checks GitHub for a newer release, and
+**Check for Updates…** in the app menu asks immediately. Transcription stays entirely
+on-device — this is the only network request the app makes, and Sparkle asks before it makes
+the first one, so declining leaves the app exactly as offline as it was.
+
+0.1.0 and 0.2.0 shipped without an updater and cannot learn about this. If you are holding
+one of those, download 0.3.0 by hand once; every release after it arrives on its own.
+
 ---
 
 ## Coexisting with another dictation app
@@ -205,7 +215,7 @@ The tag must match `CFBundleShortVersionString` in `Resources/Info.plist` or the
 stops before signing anything. `workflow_dispatch` runs everything except the publish, so
 the whole path can be rehearsed without spending a version number.
 
-Five repository secrets drive it. Set them with `gh secret set`; none of them belong in the
+Six repository secrets drive it. Set them with `gh secret set`; none of them belong in the
 repo:
 
 | Secret | What it is |
@@ -215,6 +225,14 @@ repo:
 | `APPLE_ID` | Apple ID of the Developer Program account |
 | `APPLE_APP_PASSWORD` | App-specific password from appleid.apple.com, for `notarytool` |
 | `APPLE_TEAM_ID` | The 10-character team ID, also in the certificate's common name |
+| `SPARKLE_PRIVATE_KEY` | The EdDSA update key, exported with `generate_keys -x` |
+
+**The update key has nothing to do with the other five.** Apple's certificate proves who
+built the app; Sparkle's EdDSA key proves the archive an installed copy is about to download
+is the one this workflow published. It is generated once with Sparkle's `generate_keys`,
+lives in the login keychain of the Mac that made it, and only its public half —
+`SUPublicEDKey` — is in the repo. Losing the private half means every installed copy stops
+accepting updates until it is replaced by hand.
 
 **An app-specific password, not an App Store Connect API key.** The key is the sturdier
 credential and is what Apple documents first, but it adds a third secret file to manage for
@@ -224,6 +242,13 @@ off a single personal Apple ID.
 **Local builds are unaffected.** `SIGN_TIMESTAMP` defaults to `--timestamp=none` so `make`
 still works offline; only the release overrides it, because notarization rejects a
 signature with no secure timestamp.
+
+**The release also publishes `appcast.xml`**, the feed every installed copy reads from
+`releases/latest/download/appcast.xml` — the one GitHub URL that follows the newest release
+instead of pinning to a tag. Two gates guard it: the workflow refuses a `CFBundleVersion`
+that is not greater than the published one, since Sparkle compares build numbers and would
+silently offer nothing, and `swift test` refuses a feed URL that has been pointed at a
+per-tag asset.
 
 ---
 

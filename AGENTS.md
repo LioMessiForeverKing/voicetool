@@ -254,6 +254,25 @@ rejects a signature carrying no secure timestamp, and `STAGE`, so the bundle lan
 workflow can find it. Don't sign a release locally to save time; the workflow's Gatekeeper
 check is the only thing standing between a bad signature and a download nobody can open.
 
+**Sparkle is embedded by the `Makefile`, not by SwiftPM.** SwiftPM links against the binary
+artifact in its scratch directory and copies nothing, so `Package.swift` adds an
+`@executable_path/../Frameworks` rpath and `make app` dittos `Sparkle.framework` into the
+bundle. Three consequences, all of which produce an app that launches fine here and fails
+elsewhere if you get them wrong:
+
+- **`ditto`, never `cp -R`.** The framework is a web of version symlinks and `cp -R` flattens
+  them.
+- **Sign inside out.** `Updater.app`, then `Autoupdate`, then the framework, then the app.
+  Signing a nested bundle after its container invalidates the container.
+- **The XPC services are deleted.** They exist for sandboxed apps; Murmur is not sandboxed.
+  Delete the top-level `XPCServices` symlink with them or `xattr -cr` trips over it dangling.
+
+**The update feed URL must not move.** `SUFeedURL` points at
+`releases/latest/download/appcast.xml`, the one GitHub URL that redirects to whichever
+release is newest. A per-tag asset URL pins each installed copy to the appcast it shipped
+with, and every one of them silently stops updating. `Tests/MurmurUpdateTests` exists to
+catch that edit.
+
 **`log` may be shadowed in the user's shell.** Use `/usr/bin/log` explicitly.
 
 **Don't run the `.app` from the repo folder.** It's iCloud-synced and the sync engine can
@@ -353,6 +372,8 @@ lookahead, `\p{L}`, and `$1`–`$9` in replacements. Nothing else.
    will meet SmartScreen. macOS releases are notarized — see README ▸ Releasing.
 4. **An installer** for Windows, and model download from inside the app rather than by
    following `docs/PARAKEET-WINDOWS.md` by hand.
+5. **Auto-update on Windows.** macOS updates itself through Sparkle from 0.3.0 onward; the
+   Windows build has no equivalent and is still downloaded by hand.
 
 ## What no amount of CI can verify
 

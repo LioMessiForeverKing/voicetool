@@ -37,6 +37,13 @@ CONTENTS := $(BUNDLE)/Contents
 ##                           untrusted.
 LOCAL_SIGN_ID := Murmur Local Signing
 
+## Sparkle arrives as a SwiftPM binary artifact: the linker resolves against it, but nothing
+## copies it into the bundle, and a shipped app without this framework beside it dies in dyld
+## before `main`. It is embedded here and re-signed with our identity, because the copy Sparkle
+## publishes is ad-hoc signed and notarization refuses ad-hoc nested code.
+SPARKLE  := $(SCRATCH)/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework
+FRAMEWORK := $(CONTENTS)/Frameworks/Sparkle.framework
+
 ## Notarization requires a secure timestamp from Apple's timestamp server. Local builds
 ## neither need one nor should depend on the network, so the release workflow overrides
 ## this with `--timestamp`.
@@ -75,9 +82,25 @@ app: build
 	@cp Resources/Info.plist "$(CONTENTS)/Info.plist"
 	@if [ -f Resources/AppIcon.icns ]; then cp Resources/AppIcon.icns "$(CONTENTS)/Resources/"; fi
 	@printf 'APPL????' > "$(CONTENTS)/PkgInfo"
+	@test -d "$(SPARKLE)" || { echo "no Sparkle at $(SPARKLE) — run 'swift build' first"; exit 1; }
+	@rm -rf "$(FRAMEWORK)"
+	@mkdir -p "$(CONTENTS)/Frameworks"
+	@# ditto, not cp: the framework is a web of symlinks and cp -R would flatten them.
+	@ditto "$(SPARKLE)" "$(FRAMEWORK)"
+	@# Sandboxed apps need these two XPC services. Murmur is not sandboxed, and every
+	@# bundle left in here is one more thing to sign, staple and get wrong. The top-level
+	@# symlink goes with them, or `xattr -cr` and codesign both trip over it dangling.
+	@rm -rf "$(FRAMEWORK)/Versions/Current/XPCServices" "$(FRAMEWORK)/XPCServices"
 	@# Belt and braces: the staging dir isn't synced, but the copied binary can still carry
 	@# xattrs inherited from the synced .build directory.
 	@xattr -cr "$(BUNDLE)"
+	@# Inside out, and without the app's entitlements: codesign seals what it finds, so a
+	@# nested bundle signed after its container invalidates the container's signature.
+	@for nested in Updater.app Autoupdate; do \
+		codesign --force --sign "$(SIGN_ID)" --options runtime $(SIGN_TIMESTAMP) \
+			"$(FRAMEWORK)/Versions/Current/$$nested" || exit 1; \
+	done
+	@codesign --force --sign "$(SIGN_ID)" --options runtime $(SIGN_TIMESTAMP) "$(FRAMEWORK)"
 	@codesign --force --sign "$(SIGN_ID)" \
 		--entitlements Resources/$(EXEC).entitlements \
 		--options runtime \

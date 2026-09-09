@@ -26,6 +26,15 @@
 	<string>2</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<!-- `releases/latest/download/` is the one GitHub URL that does not move: it redirects
+	     to whichever release is newest. A per-tag asset URL would pin every installed copy
+	     to the appcast of the version it shipped with, and updates would stop forever. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/LioMessiForeverKing/voicetool/releases/latest/download/appcast.xml</string>
+	<!-- Public half of the EdDSA update key. The private half lives only in the login
+	     keychain that made it and in the SPARKLE_PRIVATE_KEY repository secret. -->
+	<key>SUPublicEDKey</key>
+	<string>qLhXgUZj3s7uTINjEcBIUo8TJ8q/TddvHfkxtD39NXg=</string>
 	<!-- Lets the dashboard's Clear button call back into the app. A file:// page can't
 	     write files or talk to a process, but it can follow a custom-scheme link. -->
 	<key>CFBundleURLTypes</key>

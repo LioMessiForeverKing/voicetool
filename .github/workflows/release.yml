@@ -16,6 +16,9 @@ env:
   KEYCHAIN: /tmp/murmur-signing.keychain-db
   STAGE: /tmp/murmur-stage
   APP: /tmp/murmur-stage/Murmur.app
+  SCRATCH: /tmp/murmur-scratch
+  SPARKLE_BIN: /tmp/murmur-scratch/artifacts/sparkle/Sparkle/bin
+  APPCAST: appcast.xml
 
 jobs:
   release:
@@ -39,9 +42,13 @@ jobs:
       - name: Check the tag matches the bundle version
         id: version
         run: |
-          plist=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" Resources/Info.plist; }
+          plist=$(read_key CFBundleShortVersionString)
           echo "version=$plist" >> "$GITHUB_OUTPUT"
           echo "zip=Murmur-$plist.zip" >> "$GITHUB_OUTPUT"
+          echo "build=$(read_key CFBundleVersion)" >> "$GITHUB_OUTPUT"
+          echo "minimum-os=$(read_key LSMinimumSystemVersion)" >> "$GITHUB_OUTPUT"
+          echo "feed=$(read_key SUFeedURL)" >> "$GITHUB_OUTPUT"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             tag="${GITHUB_REF_NAME#v}"
             if [ "$tag" != "$plist" ]; then
@@ -81,13 +88,15 @@ jobs:
       # CONFIG=release because debug is the local default, and a secure timestamp because
       # notarization rejects a signature without one.
       - name: Build and sign the app
-        run: make app CONFIG=release SIGN_TIMESTAMP=--timestamp STAGE="$STAGE"
+        run: make app CONFIG=release SIGN_TIMESTAMP=--timestamp STAGE="$STAGE" SCRATCH="$SCRATCH"
 
       # The Makefile falls back to a local identity and then to ad-hoc when it finds no
       # Developer ID, so an unchecked build here would ship something Gatekeeper rejects.
       - name: Verify the signature before submitting it
         run: |
-          codesign --verify --strict --verbose=2 "$APP"
+          # --deep because Sparkle.framework is nested code the Makefile signs separately,
+          # and notarization rejects the whole submission over one ad-hoc inner bundle.
+          codesign --verify --strict --deep --verbose=2 "$APP"
           info=$(codesign -dvvv "$APP" 2>&1)
           echo "$info"
           check() {
@@ -139,11 +148,95 @@ jobs:
             exit 1
           fi
 
+      # Sparkle trusts the EdDSA signature over the archive, not the Developer ID, so this
+      # is a second and entirely separate signing key from the five above.
+      - name: Sign the archive for Sparkle
+        id: sparkle
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::error::SPARKLE_PRIVATE_KEY is unset. See README ▸ Releasing."
+            exit 1
+          fi
+          key=$(mktemp)
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$key"
+          signature=$("$SPARKLE_BIN/sign_update" "$ZIP" --ed-key-file "$key" -p)
+          rm -f "$key"
+          if [ -z "$signature" ]; then
+            echo "::error::sign_update produced no signature."
+            exit 1
+          fi
+          echo "signature=$signature" >> "$GITHUB_OUTPUT"
+          echo "length=$(stat -f%z "$ZIP")" >> "$GITHUB_OUTPUT"
+
+      # Every installed copy reads the appcast attached to whichever release is newest, so a
+      # build number that did not move leaves them all sitting on the version they have.
+      - name: Refuse a build number the updater would ignore
+        env:
+          FEED: ${{ steps.version.outputs.feed }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          if ! curl -fsSL "$FEED" -o /tmp/published-appcast.xml; then
+            echo "::notice::No appcast published yet; nothing to compare $BUILD against."
+            exit 0
+          fi
+          previous=$(sed -n 's|.*<sparkle:version>\(.*\)</sparkle:version>.*|\1|p' \
+            /tmp/published-appcast.xml | head -1)
+          echo "Published build $previous, this build $BUILD."
+          if [ -n "$previous" ] && [ "$BUILD" -le "$previous" ]; then
+            echo "::error::CFBundleVersion is $BUILD but $previous is already published."
+            exit 1
+          fi
+
+      - name: Write the appcast
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+          MINIMUM_OS: ${{ steps.version.outputs.minimum-os }}
+          FEED: ${{ steps.version.outputs.feed }}
+          ZIP: ${{ steps.version.outputs.zip }}
+          LENGTH: ${{ steps.sparkle.outputs.length }}
+          SIGNATURE: ${{ steps.sparkle.outputs.signature }}
+        run: |
+          page="https://github.com/$REPO/releases/tag/$TAG"
+          cat > "$APPCAST" <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Murmur</title>
+              <link>$FEED</link>
+              <description>Push-to-talk dictation for macOS.</description>
+              <language>en</language>
+              <item>
+                <title>Murmur $VERSION</title>
+                <link>$page</link>
+                <pubDate>$(date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+                <sparkle:version>$BUILD</sparkle:version>
+                <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>$MINIMUM_OS</sparkle:minimumSystemVersion>
+                <description><![CDATA[<p>Murmur $VERSION. <a href="$page">Release notes</a>.</p>]]></description>
+                <enclosure url="https://github.com/$REPO/releases/download/$TAG/$ZIP"
+                           length="$LENGTH"
+                           type="application/octet-stream"
+                           sparkle:edSignature="$SIGNATURE" />
+              </item>
+            </channel>
+          </rss>
+          XML
+          xmllint --noout "$APPCAST"
+          cat "$APPCAST"
+
       - name: Upload the archive
         uses: actions/upload-artifact@v4
         with:
           name: Murmur-macos
-          path: ${{ steps.version.outputs.zip }}
+          path: |
+            ${{ steps.version.outputs.zip }}
+            ${{ env.APPCAST }}
           if-no-files-found: error
           compression-level: 0
 
@@ -165,4 +258,5 @@ jobs:
             Signed with a Developer ID and notarized by Apple, so it opens without a warning.
         run: |
           printf '%s\n' "$NOTES" > /tmp/notes.md
-          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "Murmur $VERSION" --notes-file /tmp/notes.md
+          gh release create "$GITHUB_REF_NAME" "$ZIP" "$APPCAST" \
+            --title "Murmur $VERSION" --notes-file /tmp/notes.md
