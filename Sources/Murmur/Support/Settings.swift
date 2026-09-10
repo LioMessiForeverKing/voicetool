@@ -1,3 +1,4 @@
+import MurmurDictionary
 import MurmurInput
 import Foundation
 import Observation
@@ -59,6 +60,15 @@ final class Settings {
         didSet { defaults.set(learnVocabulary, forKey: Keys.learnVocabulary) }
     }
 
+    /// Terms the learner mined that the user waved away. Held here rather than in
+    /// `dictionary.txt`, because a rejection is not something the dictionary can express —
+    /// every line in that file is vocabulary to prime, and a dismissal is the opposite.
+    var dismissedLearnedTerms: DismissedTerms {
+        didSet {
+            defaults.set(dismissedLearnedTerms.storageValues, forKey: Keys.dismissedLearnedTerms)
+        }
+    }
+
     /// Play a short tick when capture starts and stops.
     var soundEnabled: Bool {
         didSet { defaults.set(soundEnabled, forKey: Keys.soundEnabled) }
@@ -75,6 +85,7 @@ final class Settings {
         static let compareMode = "compareMode"
         static let learnVocabulary = "learnVocabulary"
         static let latchEnabled = "latchEnabled"
+        static let dismissedLearnedTerms = "dismissedLearnedTerms"
     }
 
     private init() {
@@ -91,5 +102,8 @@ final class Settings {
         // On by default: it only fills bias slots the dictionary left empty, and costs nothing.
         learnVocabulary = defaults.object(forKey: Keys.learnVocabulary) as? Bool ?? true
         latchEnabled = defaults.object(forKey: Keys.latchEnabled) as? Bool ?? true
+        dismissedLearnedTerms = DismissedTerms(
+            defaults.stringArray(forKey: Keys.dismissedLearnedTerms) ?? []
+        )
     }
 }

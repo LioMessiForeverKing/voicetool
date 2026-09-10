@@ -51,12 +51,16 @@ public enum VocabularyLearner {
     /// - Parameters:
     ///   - transcripts: past runs, in any order.
     ///   - entries: the dictionary, used as an exclusion list — see below.
+    ///   - dismissed: phrases the user has rejected. Kept apart from `entries` because the
+    ///     two mean opposite things: a dictionary entry is vocabulary worth priming, a
+    ///     dismissal is a term that must never be offered again however often it recurs.
     ///   - limit: how many terms to return. Callers pass whatever the dictionary left over.
     /// - Returns: terms ranked by distinct-run count, then recency, then alphabetically so
     ///   the result is stable for a given history.
     public static func learn(
         from transcripts: [(text: String, date: Date)],
         excluding entries: [DictionaryEntry],
+        dismissing dismissed: DismissedTerms = .none,
         limit: Int
     ) -> [LearnedTerm] {
         guard limit > 0 else { return [] }
@@ -71,7 +75,7 @@ public enum VocabularyLearner {
             // A set, so repetition inside one run counts once.
             for phrase in Set(candidates(in: transcript.text)) {
                 let key = phrase.lowercased()
-                guard !excluded.contains(key) else { continue }
+                guard !excluded.contains(key), !dismissed.contains(key) else { continue }
 
                 runCounts[key, default: 0] += 1
                 if let seen = lastSeen[key], seen >= transcript.date {

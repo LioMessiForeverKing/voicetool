@@ -42,6 +42,7 @@ final class BiasVocabulary {
         let learningEnabled: Bool
         let runCount: Int
         let newestRun: Date?
+        let dismissed: DismissedTerms
     }
 
     private init() {}
@@ -49,13 +50,15 @@ final class BiasVocabulary {
     func current() -> BiasSelection {
         let store = DictionaryStore.shared
         let learningEnabled = Settings.shared.learnVocabulary
+        let dismissed = Settings.shared.dismissedLearnedTerms
         let runs = RunStore.shared.runs
 
         let key = CacheKey(
             dictionaryRevision: store.revision,
             learningEnabled: learningEnabled,
             runCount: runs.count,
-            newestRun: runs.last?.date
+            newestRun: runs.last?.date,
+            dismissed: dismissed
         )
         if key == cacheKey { return cached }
 
@@ -67,6 +70,7 @@ final class BiasVocabulary {
             learned = VocabularyLearner.learn(
                 from: Self.transcripts(from: runs),
                 excluding: store.entries,
+                dismissing: dismissed,
                 limit: room
             )
             phrases.append(contentsOf: learned.map(\.phrase))
