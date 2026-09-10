@@ -9,11 +9,24 @@ import SwiftUI
 /// a silkscreen tag on each row.
 struct DictionaryPanel: View {
     @State private var store = DictionaryStore.shared
+    @State private var settings = Settings.shared
     @State private var query = ""
     @State private var editing: DictionaryEntry?
     @State private var isAdding = false
 
     private var entries: [DictionaryEntry] { store.filtered(by: query) }
+
+    /// What the engine is primed with right now, rather than everything ever mined.
+    ///
+    /// The dictionary is laid down first and learning only fills the slots it left, so a term
+    /// crowded out of the bias list is not in effect — listing it would offer a decision about
+    /// something that is not currently happening.
+    private var learned: [LearnedTerm] {
+        let terms = BiasVocabulary.shared.current().learned
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return terms }
+        return terms.filter { $0.phrase.localizedStandardContains(trimmed) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +40,7 @@ struct DictionaryPanel: View {
                 Rectangle().fill(DS.Color.seam).frame(height: DS.Border.seam)
             }
 
-            if entries.isEmpty {
+            if entries.isEmpty, learned.isEmpty {
                 EmptyPanel(
                     label: store.entries.isEmpty ? "Dictionary empty" : "No matches",
                     detail: store.entries.isEmpty
@@ -47,6 +60,14 @@ struct DictionaryPanel: View {
                                     store.update(updated)
                                 },
                                 onDelete: { store.delete(entry) }
+                            )
+                        }
+
+                        if !learned.isEmpty {
+                            LearnedSection(
+                                terms: learned,
+                                onKeep: { store.add(.term($0.phrase)) },
+                                onIgnore: { settings.dismissedLearnedTerms.insert($0.phrase) }
                             )
                         }
                     }
@@ -88,6 +109,16 @@ struct DictionaryPanel: View {
     private var footer: some View {
         HStack(spacing: DS.Space.snug) {
             Silkscreen(text: "\(store.entries.count) entries", color: DS.Color.inkOnDeck.opacity(0.5))
+            if !settings.dismissedLearnedTerms.isEmpty {
+                Button { settings.dismissedLearnedTerms.removeAll() } label: {
+                    Silkscreen(
+                        text: "Restore \(settings.dismissedLearnedTerms.count) ignored",
+                        color: DS.Color.inkOnDeck.opacity(0.5)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Let the learner suggest these terms again")
+            }
             Spacer()
             Button {
                 NSWorkspace.shared.activateFileViewerSelecting([DictionaryStore.fileURL])
@@ -159,6 +190,110 @@ private struct DictionaryRow: View {
             Silkscreen(text: title, color: DS.Color.inkOnDeck.opacity(0.6))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Learned
+
+/// What the app mined out of past transcripts, and the two decisions available about it.
+///
+/// Below the dictionary rather than above it: these are guesses, and the entries the user
+/// wrote by hand outrank them. Shown at all because the learner is otherwise invisible — it
+/// primes the engine on every recording with words nobody ever confirmed.
+private struct LearnedSection: View {
+    let terms: [LearnedTerm]
+    let onKeep: (LearnedTerm) -> Void
+    let onIgnore: (LearnedTerm) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.tight) {
+            Rectangle()
+                .fill(DS.Color.seam)
+                .frame(height: DS.Border.seam)
+                .padding(.top, DS.Space.roomy)
+
+            VStack(alignment: .leading, spacing: DS.Space.hair) {
+                HStack(spacing: DS.Space.snug) {
+                    Silkscreen(text: "Learned from your speech", color: DS.Color.inkOnDeck.opacity(0.55))
+                    Silkscreen(text: "\(terms.count)", color: DS.Color.inkOnDeck.opacity(0.3))
+                }
+                Text("Names picked out of what you've dictated, priming the engine already. "
+                    + "Keep writes one into the dictionary; Ignore stops it coming back.")
+                    .font(DS.Font.label)
+                    .foregroundStyle(DS.Color.inkOnDeck.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, DS.Space.base)
+            .padding(.bottom, DS.Space.tight)
+
+            ForEach(terms, id: \.phrase) { term in
+                LearnedRow(term: term, onKeep: { onKeep(term) }, onIgnore: { onIgnore(term) })
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// One suggestion, with both answers always on the row.
+///
+/// The dictionary rows reveal their controls on hover, which suits a list you mostly read.
+/// This list exists to be answered, and a decision hidden until the pointer lands on it is
+/// one most people never discover they were being asked for.
+///
+/// The lamp is amber where the dictionary's is green: lit, because these are priming the
+/// engine right now, but not the settled green of something the user confirmed.
+private struct LearnedRow: View {
+    let term: LearnedTerm
+    let onKeep: () -> Void
+    let onIgnore: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: DS.Space.snug) {
+            Lamp(color: DS.Color.meterAmber, isLit: true, size: 6)
+                .padding(.trailing, DS.Space.tight)
+
+            Text(term.phrase)
+                .font(DS.Font.bodyEmphasis)
+                .foregroundStyle(DS.Color.inkOnDeck)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Silkscreen(
+                text: term.runCount == 1 ? "1 run" : "\(term.runCount) runs",
+                color: DS.Color.inkOnDeck.opacity(0.35)
+            )
+            .fixedSize()
+
+            Spacer(minLength: DS.Space.base)
+
+            action("Keep", isPrimary: true, action: onKeep)
+            action("Ignore", isPrimary: false, action: onIgnore)
+        }
+        .padding(.horizontal, DS.Space.base)
+        .padding(.vertical, DS.Space.snug)
+        .background(isHovering ? DS.Color.hover : DS.Color.deck, in: .rect(cornerRadius: DS.Radius.chip))
+        .onHover { isHovering = $0 }
+    }
+
+    private func action(_ title: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Silkscreen(text: title, color: DS.Color.inkOnDeck.opacity(isPrimary ? 0.85 : 0.5))
+                .padding(.horizontal, DS.Space.snug)
+                .padding(.vertical, DS.Space.tight)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.chip)
+                        .strokeBorder(
+                            DS.Color.inkOnDeck.opacity(isPrimary ? 0.3 : 0.15),
+                            lineWidth: DS.Border.hairline
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(isPrimary
+            ? "Add “\(term.phrase)” to the dictionary as a permanent term"
+            : "Stop suggesting “\(term.phrase)”")
     }
 }
 

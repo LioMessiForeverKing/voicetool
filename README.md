@@ -184,20 +184,36 @@ change.
 
 ---
 
+## Dictionary
+
+Names and jargon the engine keeps fumbling, in two shapes: a **term** is a word it should
+know exists (`Anthropic`), a **correction** is a mapping (`cloud code -> Claude Code`).
+Corrections match by sound as well as spelling, so one entry covers every way a name can come
+out wrong. It is a plain text file — `~/Library/Application Support/Murmur/dictionary.txt` —
+watched while the app runs, so editing it in any editor updates the UI live.
+
+Murmur also **learns**, mining recurring names out of what you have already dictated and
+priming the engine with them. Everything it learned is listed under the dictionary, with the
+number of separate dictations that back it. **Keep** promotes one to a permanent entry;
+**Ignore** stops it being suggested, and the footer restores everything ignored.
+
+The dictionary is laid down first and learning only fills the
+`DictionaryCorrector.biasLimit` slots left over, so a hand-written entry always outranks a
+guess. Turn learning off in Settings and only the dictionary primes the engine.
+
+---
+
 ## Not built yet
 
-1. **LLM cleanup tier.** `RuleBasedFormatter` strips fillers, fixes spacing, capitalizes
-   sentences and adds terminal punctuation — genuinely useful, entirely deterministic. The
-   real win is a second `TextFormatter` backed by Apple's on-device Foundation Models
-   (macOS 26) for tone, list formatting, and honoring spoken corrections, with Claude as an
-   optional higher-quality tier.
+1. **A hosted cleanup tier.** `RuleBasedFormatter` strips fillers, fixes spacing, capitalizes
+   sentences and adds terminal punctuation, entirely deterministically; `FoundationModelFormatter`
+   is the on-device LLM pass behind the **smart cleanup** setting. Neither honors spoken
+   corrections yet, and Claude as an optional higher-quality tier is still unbuilt.
 2. **Command Mode.** Select text, hold a second hotkey, say "make this more formal."
    Needs AX read of `kAXSelectedTextAttribute` plus an LLM round-trip.
-3. **Personal dictionary.** Names and jargon the ASR keeps missing. `SpeechAnalyzer`
-   supports this through `AnalysisContext` / `SFCustomLanguageModelData`.
-4. **Branding.** `Brand` in `HUDView.swift` is a two-color placeholder gradient. App icon,
+3. **Branding.** `Brand` in `HUDView.swift` is a two-color placeholder gradient. App icon,
    real palette, HUD motion design, onboarding.
-5. **Onboarding.** A first-run window that walks through both permissions instead of
+4. **Onboarding.** A first-run window that walks through both permissions instead of
    relying on the menu's "Grant…" items.
 
 ---
