@@ -256,9 +256,13 @@ jobs:
             4. Hold **Right Option** and talk. Change the key in Settings.
 
             Signed with a Developer ID and notarized by Apple, so it opens without a warning.
+            Murmur checks for new versions on its own and offers them.
 
-            This is the first release that updates itself. From here on Murmur checks for new
-            versions on its own and offers them — there is no download to go and find again.
+            **New in this release.** The dictionary now shows you what Murmur taught itself,
+            and lets you answer it. Spellings that sound alike are grouped into one row, so
+            `Supabase`, `Soopabase` and `SupaBase` no longer arrive as three separate
+            suggestions. Keep promotes a name, Ignore refuses it, and Fix… turns a mishearing
+            into a correction the engine stops making.
         run: |
           printf '%s\n' "$NOTES" > /tmp/notes.md
           gh release create "$GITHUB_REF_NAME" "$ZIP" "$APPCAST" \
