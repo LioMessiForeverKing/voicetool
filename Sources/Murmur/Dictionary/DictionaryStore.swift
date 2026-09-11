@@ -55,6 +55,14 @@ final class DictionaryStore {
         save()
     }
 
+    /// Adds several entries against one save, so resolving a cluster is a single rewrite of
+    /// the file rather than one per correction.
+    func add(contentsOf newEntries: [DictionaryEntry]) {
+        guard !newEntries.isEmpty else { return }
+        entries.append(contentsOf: newEntries)
+        save()
+    }
+
     func update(_ entry: DictionaryEntry) {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
         entries[index] = entry

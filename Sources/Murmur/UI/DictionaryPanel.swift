@@ -12,6 +12,7 @@ struct DictionaryPanel: View {
     @State private var settings = Settings.shared
     @State private var query = ""
     @State private var editing: DictionaryEntry?
+    @State private var fixing: LearnedCluster?
     @State private var isAdding = false
 
     private var entries: [DictionaryEntry] { store.filtered(by: query) }
@@ -21,11 +22,13 @@ struct DictionaryPanel: View {
     /// The dictionary is laid down first and learning only fills the slots it left, so a term
     /// crowded out of the bias list is not in effect — listing it would offer a decision about
     /// something that is not currently happening.
-    private var learned: [LearnedTerm] {
-        let terms = BiasVocabulary.shared.current().learned
+    private var learned: [LearnedCluster] {
+        let clusters = BiasVocabulary.shared.current().clusters
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return terms }
-        return terms.filter { $0.phrase.localizedStandardContains(trimmed) }
+        guard !trimmed.isEmpty else { return clusters }
+        return clusters.filter { cluster in
+            cluster.phrases.contains { $0.localizedStandardContains(trimmed) }
+        }
     }
 
     var body: some View {
@@ -65,9 +68,14 @@ struct DictionaryPanel: View {
 
                         if !learned.isEmpty {
                             LearnedSection(
-                                terms: learned,
-                                onKeep: { store.add(.term($0.phrase)) },
-                                onIgnore: { settings.dismissedLearnedTerms.insert($0.phrase) }
+                                clusters: learned,
+                                onKeep: { store.add(.term($0.primary.phrase)) },
+                                onFix: { fixing = $0 },
+                                onIgnore: { cluster in
+                                    cluster.phrases.forEach {
+                                        settings.dismissedLearnedTerms.insert($0)
+                                    }
+                                }
                             )
                         }
                     }
@@ -82,6 +90,14 @@ struct DictionaryPanel: View {
         }
         .sheet(item: $editing) { entry in
             DictionaryEditor(entry: entry) { store.update($0) }
+        }
+        .sheet(item: $fixing) { cluster in
+            ClusterResolver(
+                cluster: cluster,
+                suggestion: VocabularyLearner.knownSpelling(for: cluster, in: store.entries)
+            ) { correct in
+                store.add(contentsOf: cluster.corrections(to: correct))
+            }
         }
     }
 
@@ -195,15 +211,16 @@ private struct DictionaryRow: View {
 
 // MARK: - Learned
 
-/// What the app mined out of past transcripts, and the two decisions available about it.
+/// What the app mined out of past transcripts, and the decisions available about it.
 ///
 /// Below the dictionary rather than above it: these are guesses, and the entries the user
 /// wrote by hand outrank them. Shown at all because the learner is otherwise invisible — it
 /// primes the engine on every recording with words nobody ever confirmed.
 private struct LearnedSection: View {
-    let terms: [LearnedTerm]
-    let onKeep: (LearnedTerm) -> Void
-    let onIgnore: (LearnedTerm) -> Void
+    let clusters: [LearnedCluster]
+    let onKeep: (LearnedCluster) -> Void
+    let onFix: (LearnedCluster) -> Void
+    let onIgnore: (LearnedCluster) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.tight) {
@@ -215,10 +232,11 @@ private struct LearnedSection: View {
             VStack(alignment: .leading, spacing: DS.Space.hair) {
                 HStack(spacing: DS.Space.snug) {
                     Silkscreen(text: "Learned from your speech", color: DS.Color.inkOnDeck.opacity(0.55))
-                    Silkscreen(text: "\(terms.count)", color: DS.Color.inkOnDeck.opacity(0.3))
+                    Silkscreen(text: "\(clusters.count)", color: DS.Color.inkOnDeck.opacity(0.3))
                 }
                 Text("Names picked out of what you've dictated, priming the engine already. "
-                    + "Keep writes one into the dictionary; Ignore stops it coming back.")
+                    + "Keep writes one into the dictionary, Fix corrects a mishearing, "
+                    + "Ignore stops it coming back.")
                     .font(DS.Font.label)
                     .foregroundStyle(DS.Color.inkOnDeck.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
@@ -226,15 +244,20 @@ private struct LearnedSection: View {
             .padding(.horizontal, DS.Space.base)
             .padding(.bottom, DS.Space.tight)
 
-            ForEach(terms, id: \.phrase) { term in
-                LearnedRow(term: term, onKeep: { onKeep(term) }, onIgnore: { onIgnore(term) })
+            ForEach(clusters) { cluster in
+                LearnedRow(
+                    cluster: cluster,
+                    onKeep: { onKeep(cluster) },
+                    onFix: { onFix(cluster) },
+                    onIgnore: { onIgnore(cluster) }
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// One suggestion, with both answers always on the row.
+/// One name, with every answer on the row.
 ///
 /// The dictionary rows reveal their controls on hover, which suits a list you mostly read.
 /// This list exists to be answered, and a decision hidden until the pointer lands on it is
@@ -243,38 +266,57 @@ private struct LearnedSection: View {
 /// The lamp is amber where the dictionary's is green: lit, because these are priming the
 /// engine right now, but not the settled green of something the user confirmed.
 private struct LearnedRow: View {
-    let term: LearnedTerm
+    let cluster: LearnedCluster
     let onKeep: () -> Void
+    let onFix: () -> Void
     let onIgnore: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: DS.Space.snug) {
-            Lamp(color: DS.Color.meterAmber, isLit: true, size: 6)
-                .padding(.trailing, DS.Space.tight)
+        VStack(alignment: .leading, spacing: DS.Space.hair) {
+            HStack(spacing: DS.Space.snug) {
+                Lamp(color: DS.Color.meterAmber, isLit: true, size: 6)
+                    .padding(.trailing, DS.Space.tight)
 
-            Text(term.phrase)
-                .font(DS.Font.bodyEmphasis)
-                .foregroundStyle(DS.Color.inkOnDeck)
-                .lineLimit(1)
-                .truncationMode(.tail)
+                Text(cluster.primary.phrase)
+                    .font(DS.Font.bodyEmphasis)
+                    .foregroundStyle(DS.Color.inkOnDeck)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-            Silkscreen(
-                text: term.runCount == 1 ? "1 run" : "\(term.runCount) runs",
-                color: DS.Color.inkOnDeck.opacity(0.35)
-            )
-            .fixedSize()
+                Silkscreen(
+                    text: cluster.runCount == 1 ? "1 run" : "\(cluster.runCount) runs",
+                    color: DS.Color.inkOnDeck.opacity(0.35)
+                )
+                .fixedSize()
 
-            Spacer(minLength: DS.Space.base)
+                Spacer(minLength: DS.Space.base)
 
-            action("Keep", isPrimary: true, action: onKeep)
-            action("Ignore", isPrimary: false, action: onIgnore)
+                action("Keep", isPrimary: !cluster.isSplit, action: onKeep)
+                action("Fix…", isPrimary: cluster.isSplit, action: onFix)
+                action("Ignore", isPrimary: false, action: onIgnore)
+            }
+
+            if cluster.isSplit {
+                Text("heard \(cluster.variants.count) ways — " + spellings)
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.meterAmber.opacity(0.75))
+                    .padding(.leading, 26)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
         }
         .padding(.horizontal, DS.Space.base)
         .padding(.vertical, DS.Space.snug)
         .background(isHovering ? DS.Color.hover : DS.Color.deck, in: .rect(cornerRadius: DS.Radius.chip))
         .onHover { isHovering = $0 }
+    }
+
+    private var spellings: String {
+        cluster.variants
+            .map { "\($0.phrase) ×\($0.runCount)" }
+            .joined(separator: "  ·  ")
     }
 
     private func action(_ title: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
@@ -291,9 +333,135 @@ private struct LearnedRow: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(isPrimary
-            ? "Add “\(term.phrase)” to the dictionary as a permanent term"
-            : "Stop suggesting “\(term.phrase)”")
+    }
+}
+
+// MARK: - Resolver
+
+/// Settles a learned name on one spelling.
+///
+/// The spelling the engine produced most often is offered first, but it is only a default:
+/// an engine can fumble a name every single time it hears it, and then the right answer is
+/// in none of the variants and has to be typed.
+private struct ClusterResolver: View {
+    let cluster: LearnedCluster
+    let suggestion: String?
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var write: String
+
+    init(cluster: LearnedCluster, suggestion: String?, onSave: @escaping (String) -> Void) {
+        self.cluster = cluster
+        self.suggestion = suggestion
+        self.onSave = onSave
+        _write = State(initialValue: suggestion ?? cluster.primary.phrase)
+    }
+
+    private var trimmed: String { write.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var corrected: [String] {
+        cluster.phrases.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.roomy) {
+            Silkscreen(text: "Write it correctly", large: true)
+
+            VStack(alignment: .leading, spacing: DS.Space.snug) {
+                Silkscreen(text: cluster.isSplit
+                    ? "Heard \(cluster.variants.count) ways across \(cluster.runCount) dictations"
+                    : "Heard \(cluster.runCount) times")
+
+                HStack(spacing: DS.Space.tight) {
+                    ForEach(cluster.variants, id: \.phrase) { variant in
+                        Button { write = variant.phrase } label: {
+                            HStack(spacing: DS.Space.tight) {
+                                Text(variant.phrase).font(DS.Font.body)
+                                Silkscreen(text: "×\(variant.runCount)",
+                                           color: DS.Color.inkOnDeck.opacity(0.45))
+                            }
+                            .foregroundStyle(DS.Color.inkOnDeck)
+                            .padding(.horizontal, DS.Space.snug)
+                            .padding(.vertical, DS.Space.tight)
+                            .background(DS.Color.deck, in: .rect(cornerRadius: DS.Radius.chip))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: DS.Radius.chip)
+                                    .strokeBorder(
+                                        variant.phrase.caseInsensitiveCompare(trimmed) == .orderedSame
+                                            ? DS.Color.meterGreen.opacity(0.7)
+                                            : DS.Color.seam,
+                                        lineWidth: DS.Border.hairline
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if let suggestion {
+                note("Your dictionary already has “\(suggestion)”, and this sounds like it.")
+            }
+
+            VStack(alignment: .leading, spacing: DS.Space.tight) {
+                Silkscreen(text: "Write")
+                TextField(cluster.primary.phrase, text: $write)
+                    .textFieldStyle(.plain)
+                    .font(DS.Font.body)
+                    .foregroundStyle(DS.Color.inkOnDeck)
+                    .padding(DS.Space.snug)
+                    .background(DS.Color.deck, in: .rect(cornerRadius: DS.Radius.chip))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.Radius.chip)
+                            .strokeBorder(DS.Color.seam, lineWidth: DS.Border.hairline)
+                    )
+            }
+
+            Text(outcome)
+                .font(DS.Font.label)
+                .foregroundStyle(DS.Color.ink.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: DS.Space.snug) {
+                Spacer()
+                TransportKey(title: "Cancel") { dismiss() }
+                TransportKey(title: "Save", isEngaged: !trimmed.isEmpty, engagedColor: DS.Color.ink) {
+                    guard !trimmed.isEmpty else { return }
+                    onSave(trimmed)
+                    dismiss()
+                }
+                .disabled(trimmed.isEmpty)
+            }
+        }
+        .padding(DS.Space.panel)
+        .frame(width: 460)
+        .background(BrushedPanel(radius: DS.Radius.window))
+    }
+
+    private var outcome: String {
+        guard !trimmed.isEmpty else { return "Type the spelling you actually want written." }
+        guard !corrected.isEmpty else {
+            return "Adds “\(trimmed)” to the dictionary as a term."
+        }
+        let list = corrected.map { "“\($0)”" }.joined(separator: ", ")
+        return "Adds “\(trimmed)” as a term, and corrects \(list) to it from now on."
+    }
+
+    private func note(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: DS.Space.snug) {
+            Lamp(color: DS.Color.meterGreen, isLit: true, size: 6).padding(.top, 3)
+            Text(message)
+                .font(DS.Font.label)
+                .foregroundStyle(DS.Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DS.Space.snug)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.Radius.chip)
+                .strokeBorder(DS.Color.meterGreen.opacity(0.4), lineWidth: DS.Border.hairline)
+        )
     }
 }
 

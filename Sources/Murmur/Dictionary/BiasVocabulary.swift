@@ -10,7 +10,11 @@ struct BiasSelection: Sendable {
     /// leaving the user to take it on faith.
     let learned: [LearnedTerm]
 
-    static let empty = BiasSelection(phrases: [], learned: [])
+    /// The same terms grouped by sound, which is what the panel lists — a name heard two ways
+    /// is one decision, not two.
+    let clusters: [LearnedCluster]
+
+    static let empty = BiasSelection(phrases: [], learned: [], clusters: [])
 }
 
 /// Assembles the engine's bias list from two sources: the dictionary the user wrote, and
@@ -63,20 +67,23 @@ final class BiasVocabulary {
         if key == cacheKey { return cached }
 
         var phrases = DictionaryCorrector.biasPhrases(from: store.entries)
-        var learned: [LearnedTerm] = []
+        var clusters: [LearnedCluster] = []
 
         let room = DictionaryCorrector.biasLimit - phrases.count
         if learningEnabled, room > 0 {
-            learned = VocabularyLearner.learn(
+            clusters = VocabularyLearner.clusters(
                 from: Self.transcripts(from: runs),
                 excluding: store.entries,
                 dismissing: dismissed,
                 limit: room
             )
-            phrases.append(contentsOf: learned.map(\.phrase))
+            // The best-evidenced spelling only. Priming every variant would spend the budget
+            // teaching the engine the mishearings as well as the name.
+            phrases.append(contentsOf: clusters.map(\.primary.phrase))
         }
 
-        let selection = BiasSelection(phrases: phrases, learned: learned)
+        let learned = clusters.map(\.primary)
+        let selection = BiasSelection(phrases: phrases, learned: learned, clusters: clusters)
         cacheKey = key
         cached = selection
         return selection
