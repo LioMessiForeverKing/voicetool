@@ -21,6 +21,58 @@ public struct LearnedTerm: Sendable, Hashable {
     }
 }
 
+/// One name the learner found, and every spelling it arrived as.
+///
+/// An engine that fumbles a name rarely fumbles it the same way twice, so the evidence for a
+/// single name arrives split across spellings — two sightings of "Superbase" and one of
+/// "Supabase" is three sightings of one word, not two terms that both fall short. Grouping by
+/// sound puts that evidence back together, and makes the disagreement visible: a name with
+/// more than one spelling is one the engine is guessing at.
+public struct LearnedCluster: Sendable, Hashable, Identifiable {
+    /// The phonetic code the spellings share, or the spelling itself where sound-matching
+    /// would be unsafe.
+    public let id: String
+
+    /// Every spelling heard, most evidence first. Never empty.
+    public let variants: [LearnedTerm]
+
+    /// Distinct runs the name appeared in, counting a run once however many ways it spelled it.
+    public let runCount: Int
+
+    public let lastSeen: Date
+
+    public init(id: String, variants: [LearnedTerm], runCount: Int, lastSeen: Date) {
+        self.id = id
+        self.variants = variants
+        self.runCount = runCount
+        self.lastSeen = lastSeen
+    }
+
+    /// The spelling with the most evidence. What gets primed, and what a one-spelling cluster
+    /// is entirely made of.
+    public var primary: LearnedTerm { variants[0] }
+
+    /// More than one spelling, so the engine is not producing this name consistently and the
+    /// right one may be none of them.
+    public var isSplit: Bool { variants.count > 1 }
+
+    public var phrases: [String] { variants.map(\.phrase) }
+
+    /// The dictionary entries that settle this cluster on one spelling.
+    ///
+    /// A term for the correct spelling, so the engine is primed toward it, and a correction
+    /// from every other spelling heard. The correct spelling need not be one of them — the
+    /// engine can fumble a name every single time, and often does.
+    public func corrections(to correct: String) -> [DictionaryEntry] {
+        let write = correct.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !write.isEmpty else { return [] }
+
+        return [.term(write)] + phrases
+            .filter { $0.caseInsensitiveCompare(write) != .orderedSame }
+            .map { .correction(hear: $0, write: write) }
+    }
+}
+
 /// Mines recurring proper nouns out of past transcripts so the engine can be biased toward
 /// the words this speaker actually uses — the names, products and jargon that a general
 /// model reliably fumbles.
@@ -63,6 +115,25 @@ public enum VocabularyLearner {
         dismissing dismissed: DismissedTerms = .none,
         limit: Int
     ) -> [LearnedTerm] {
+        clusters(from: transcripts, excluding: entries, dismissing: dismissed, limit: limit)
+            .map(\.primary)
+    }
+
+    /// The same mining, grouped by how each phrase *sounds*.
+    ///
+    /// - Parameters:
+    ///   - transcripts: past runs, in any order.
+    ///   - entries: the dictionary, used as an exclusion list — see below.
+    ///   - dismissed: phrases the user has rejected.
+    ///   - limit: how many clusters to return. One phrase is primed per cluster, so this is
+    ///     still a count of bias slots.
+    /// - Returns: clusters ranked by distinct-run count, then recency, then alphabetically.
+    public static func clusters(
+        from transcripts: [(text: String, date: Date)],
+        excluding entries: [DictionaryEntry],
+        dismissing dismissed: DismissedTerms = .none,
+        limit: Int
+    ) -> [LearnedCluster] {
         guard limit > 0 else { return [] }
 
         let excluded = exclusions(from: entries)
@@ -71,38 +142,109 @@ public enum VocabularyLearner {
         var lastSeen: [String: Date] = [:]
         var display: [String: String] = [:]
 
+        var clusterRuns: [String: Int] = [:]
+        var clusterLastSeen: [String: Date] = [:]
+        var members: [String: Set<String>] = [:]
+
         for transcript in transcripts {
+            var sounded = Set<String>()
+
             // A set, so repetition inside one run counts once.
             for phrase in Set(candidates(in: transcript.text)) {
                 let key = phrase.lowercased()
                 guard !excluded.contains(key), !dismissed.contains(key) else { continue }
 
                 runCounts[key, default: 0] += 1
-                if let seen = lastSeen[key], seen >= transcript.date {
-                    continue
+
+                let sound = soundKey(for: phrase)
+                members[sound, default: []].insert(key)
+                sounded.insert(sound)
+
+                if lastSeen[key].map({ transcript.date > $0 }) ?? true {
+                    lastSeen[key] = transcript.date
+                    // Newest spelling wins, so a rename shows up as the user now writes it.
+                    display[key] = phrase
                 }
-                lastSeen[key] = transcript.date
-                // Newest spelling wins, so a rename shows up as the user now writes it.
-                display[key] = phrase
+            }
+
+            // Counted per cluster, not per spelling: one utterance that fumbles a name two
+            // different ways is still one sighting of that name.
+            for sound in sounded {
+                clusterRuns[sound, default: 0] += 1
+                if clusterLastSeen[sound].map({ transcript.date > $0 }) ?? true {
+                    clusterLastSeen[sound] = transcript.date
+                }
             }
         }
 
-        return runCounts
+        return clusterRuns
             .filter { $0.value >= minimumRuns }
-            .map { key, count in
-                LearnedTerm(
-                    phrase: display[key] ?? key,
-                    runCount: count,
-                    lastSeen: lastSeen[key] ?? .distantPast
+            .compactMap { sound, runs -> LearnedCluster? in
+                let variants = (members[sound] ?? [])
+                    .compactMap { key -> LearnedTerm? in
+                        guard let count = runCounts[key] else { return nil }
+                        return LearnedTerm(
+                            phrase: display[key] ?? key,
+                            runCount: count,
+                            lastSeen: lastSeen[key] ?? .distantPast
+                        )
+                    }
+                    .sorted(by: ranking)
+
+                guard !variants.isEmpty else { return nil }
+
+                return LearnedCluster(
+                    id: sound,
+                    variants: variants,
+                    runCount: runs,
+                    lastSeen: clusterLastSeen[sound] ?? .distantPast
                 )
             }
             .sorted { a, b in
                 if a.runCount != b.runCount { return a.runCount > b.runCount }
                 if a.lastSeen != b.lastSeen { return a.lastSeen > b.lastSeen }
-                return a.phrase.lowercased() < b.phrase.lowercased()
+                return a.primary.phrase.lowercased() < b.primary.phrase.lowercased()
             }
             .prefix(limit)
             .map { $0 }
+    }
+
+    private static func ranking(_ a: LearnedTerm, _ b: LearnedTerm) -> Bool {
+        if a.runCount != b.runCount { return a.runCount > b.runCount }
+        if a.lastSeen != b.lastSeen { return a.lastSeen > b.lastSeen }
+        return a.phrase.lowercased() < b.phrase.lowercased()
+    }
+
+    /// What a phrase is filed under, so spellings of one name meet.
+    ///
+    /// Only phrases `PhoneticKey` calls distinctive are grouped by sound. Everything else is
+    /// filed under its own spelling, because the sound-alike family of an ordinary phrase is
+    /// ordinary speech: "Is", "As" and "Us" share a code, and collapsing those into one name
+    /// with three spellings would be worse than not grouping at all.
+    ///
+    /// The `=` prefix keeps a literal key out of the phonetic namespace, which holds only
+    /// upper-case letters.
+    private static func soundKey(for phrase: String) -> String {
+        guard PhoneticKey.isDistinctive(phrase) else { return "=" + phrase.lowercased() }
+        return PhoneticKey.encode(phrase)
+    }
+
+    /// The dictionary term a cluster already sounds like, if there is one.
+    ///
+    /// The learner never mines a phrase the dictionary already holds, but it will happily mine
+    /// a *mishearing* of one — "Superbase" is not "Supabase" to a string comparison, and only
+    /// the sound says otherwise. When that happens the right answer is not a second term, it
+    /// is a correction pointing at the spelling already on file.
+    public static func knownSpelling(
+        for cluster: LearnedCluster,
+        in entries: [DictionaryEntry]
+    ) -> String? {
+        for entry in entries where entry.isEnabled {
+            let write = entry.write.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !write.isEmpty, PhoneticKey.isDistinctive(write) else { continue }
+            if PhoneticKey.encode(write) == cluster.id { return write }
+        }
+        return nil
     }
 
     // MARK: - Exclusions
