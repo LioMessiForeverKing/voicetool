@@ -193,9 +193,16 @@ out wrong. It is a plain text file — `~/Library/Application Support/Murmur/dic
 watched while the app runs, so editing it in any editor updates the UI live.
 
 Murmur also **learns**, mining recurring names out of what you have already dictated and
-priming the engine with them. Everything it learned is listed under the dictionary, with the
-number of separate dictations that back it. **Keep** promotes one to a permanent entry;
-**Ignore** stops it being suggested, and the footer restores everything ignored.
+priming the engine with them. Spellings that sound alike are grouped, so `Supabase`,
+`Soopabase` and `SupaBase` arrive as one row rather than three, with the most frequent
+spelling leading and the rest listed beneath it. Only that leading spelling is primed —
+priming the variants would teach the engine its own mishearings.
+
+Each row offers three answers. **Keep** promotes the leading spelling to a permanent entry.
+**Fix…** is for when the group is led by the wrong spelling, or a mishearing is too far off
+to have been grouped at all: type what the word really is and every variant becomes a
+correction pointing at it. **Ignore** stops it being suggested, and the footer restores
+everything ignored.
 
 The dictionary is laid down first and learning only fills the
 `DictionaryCorrector.biasLimit` slots left over, so a hand-written entry always outranks a
