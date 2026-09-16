@@ -122,12 +122,14 @@ struct OnboardingWindow: View {
                 ? "Granted, and the hotkey is armed."
                 : "Granted, but this copy has no event tap yet. Quit Murmur and open it again."
         case .microphone:
-            return hasMicrophone
-                ? "Granted. Audio never leaves the machine."
-                : "Audio capture. macOS asks once; if it has already been answered, this opens the pane instead."
+            if hasMicrophone { return "Granted. Audio never leaves the machine." }
+            if Permissions.microphoneIsRestricted {
+                return "Withheld by a policy on this Mac. Murmur cannot ask for it, and System Settings cannot grant it."
+            }
+            return "Audio capture. macOS asks once; if it has already been answered, this opens the pane instead."
         case .practice:
-            guard hasAccessibility, hasMicrophone else {
-                return "Unlocks once both permissions are granted."
+            guard progress.hasArmedHotkey, hasMicrophone else {
+                return "Unlocks once the hotkey is armed and the microphone is granted."
             }
             if let latest = lastTypedRun {
                 return "Last dictation: \(latest.text)"
@@ -142,6 +144,7 @@ struct OnboardingWindow: View {
             guard !hasAccessibility else { return nil }
             return .init(title: "Open Accessibility") { Permissions.openAccessibilitySettings() }
         case .microphone:
+            guard !Permissions.microphoneIsRestricted else { return nil }
             return .init(title: "Allow Microphone") { micRequests += 1 }
         case .practice:
             return nil
@@ -169,11 +172,11 @@ struct OnboardingWindow: View {
     /// System Settings pane opening after the card is gone has no visible cause.
     private func requestMicrophone() async {
         guard micRequests > 0 else { return }
-        let wasAnswered = Permissions.microphoneWasAnswered
+        let wasDenied = Permissions.microphoneWasDenied
         let granted = await Permissions.requestMicrophone()
         guard !Task.isCancelled else { return }
         hasMicrophone = granted
-        if !granted, wasAnswered { Permissions.openMicrophoneSettings() }
+        if !granted, wasDenied { Permissions.openMicrophoneSettings() }
     }
 }
 
