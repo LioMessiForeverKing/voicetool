@@ -16,6 +16,7 @@ struct MurmurApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .appInfo) {
+                OpenOnboardingButton()
                 Button("Check for Updates…") { Updates.shared.check() }
                     .disabled(!Updates.shared.canCheck)
                 Button("Reveal Dictionary File") {
@@ -34,6 +35,12 @@ struct MurmurApp: App {
         } label: {
             Image(systemName: delegate.controller.state.isActive ? "waveform.circle.fill" : "waveform")
         }
+
+        Window("Set up Murmur", id: OnboardingWindow.windowID) {
+            OnboardingWindow(controller: delegate.controller)
+        }
+        .defaultSize(width: DS.Material.setupCardWidth, height: DS.Material.setupCardHeight)
+        .windowResizability(.contentMinSize)
 
         Window("Engine comparison", id: "comparison") {
             ComparisonWindow(controller: delegate.controller)
@@ -231,12 +238,7 @@ private struct MenuContent: View {
                 .disabled(isPreloadingParakeet || parakeetOnDisk)
         }
 
-        if !Permissions.hasAccessibility {
-            Button("Grant Accessibility…") { Permissions.openAccessibilitySettings() }
-        }
-        if !Permissions.hasMicrophone {
-            Button("Grant Microphone…") { Permissions.openMicrophoneSettings() }
-        }
+        OpenOnboardingButton()
 
         Button("Check for Updates…") { Updates.shared.check() }
             .disabled(!Updates.shared.canCheck)

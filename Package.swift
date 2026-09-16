@@ -22,11 +22,17 @@ let package = Package(
             path: "Sources/MurmurInput",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        .target(
+            name: "MurmurOnboarding",
+            path: "Sources/MurmurOnboarding",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .executableTarget(
             name: "Murmur",
             dependencies: [
                 "MurmurDictionary",
                 "MurmurInput",
+                "MurmurOnboarding",
                 .product(name: "FluidAudio", package: "FluidAudio"),
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
@@ -42,6 +48,12 @@ let package = Package(
             name: "MurmurInputTests",
             dependencies: ["MurmurInput"],
             path: "Tests/MurmurInputTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "MurmurOnboardingTests",
+            dependencies: ["MurmurOnboarding"],
+            path: "Tests/MurmurOnboardingTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(

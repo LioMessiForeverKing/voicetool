@@ -175,6 +175,10 @@ enum DS {
         static let hudWidth: CGFloat = 340
         static let hudHeight: CGFloat = 76
 
+        // MARK: Setup card
+        static let setupCardWidth: CGFloat = 520
+        static let setupCardHeight: CGFloat = 560
+
         // MARK: Segmented level bargraph — the HUD's meter
         // Calibrated, so clipping is visible. A needle has no room to swing at this size.
         static let bargraphSegments = 14

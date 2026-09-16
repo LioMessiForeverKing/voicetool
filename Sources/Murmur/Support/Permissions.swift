@@ -29,6 +29,12 @@ enum Permissions {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// The microphone prompt has already been shown and answered, either way. Asking again
+    /// after that returns the stored answer without showing anything.
+    static var microphoneWasAnswered: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) != .notDetermined
+    }
+
     static func requestMicrophone() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:

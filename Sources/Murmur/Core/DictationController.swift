@@ -45,6 +45,12 @@ final class DictationController {
     private(set) var transcript = ""
     /// Smoothed 0…1 mic level for the waveform.
     private(set) var level: Float = 0
+    /// The hotkey tap is installed and the key will actually do something.
+    ///
+    /// Not the same claim as `Permissions.hasAccessibility`: TCC can report the app trusted
+    /// while this copy of it has no tap, which is exactly the state setup has to be able to
+    /// describe instead of telling someone to hold a key that is dead.
+    private(set) var isArmed = false
 
     private let hotkey = HotkeyMonitor()
     private let gesture = PushToTalkGesture()
@@ -101,11 +107,13 @@ final class DictationController {
         gesture.reset()
         hotkey.onPress = { [weak self] in self?.apply(self?.gesture.press() ?? .none) }
         hotkey.onRelease = { [weak self] in self?.apply(self?.gesture.release() ?? .none) }
-        return hotkey.start()
+        isArmed = hotkey.start()
+        return isArmed
     }
 
     func deactivate() {
         hotkey.stop()
+        isArmed = false
         tapTimer?.cancel()
         tapTimer = nil
         gesture.reset()
