@@ -14,7 +14,8 @@ and learns the names you actually say. The LLM cleanup tier is optional and on-d
 [Releases](https://github.com/LioMessiForeverKing/voicetool/releases), unzip it, and drag
 **Murmur.app** into Applications. Releases are signed with a Developer ID and notarized by
 Apple, so it opens without a Gatekeeper warning — no `xattr` incantation, no right-click
-Open. Then grant the two permissions below and hold **Right ⌥**.
+Open. Then grant the two permissions below and hold **Right ⌥**. **Set Up Murmur…** in the
+menu bar walks through both of them and shows you when each one lands.
 
 To build it yourself instead, see [Quick start](#quick-start).
 
@@ -155,10 +156,37 @@ Sources/Murmur/
 │   └── TextFormatter.swift         protocol + RuleBasedFormatter
 ├── UI/
 │   ├── HUDPanel.swift              non-activating floating panel
-│   └── HUDView.swift               waveform + live transcript, Brand palette
+│   ├── HUDView.swift               waveform + live transcript, Brand palette
+│   └── OnboardingWindow.swift      the setup card
 └── Support/
     ├── Settings.swift, Permissions.swift, Log.swift
 ```
+
+---
+
+## Setup card
+
+A fresh install cannot dictate, and both reasons why are invisible: macOS shows no prompt
+for Accessibility at all, and the microphone prompt only appears once something has already
+tried to record. **Set Up Murmur…** opens a card with one row per thing that has to be
+true — Accessibility, Microphone, and one real dictation — each lit when it is.
+
+The microphone row asks the OS directly, which works exactly once — after that the prompt
+never reappears and the answer comes back silently, so a second press opens the Microphone
+pane instead. Declining the prompt the card just raised is not that case, and does not get a
+pane thrown at it. Accessibility cannot be asked for at all, so its row only opens the pane.
+Either way the card then polls once a second, and a toggle you flipped ticks its row without
+a restart and without you having to guess.
+
+The third row is there because a granted permission and a working install are different
+claims. It stays unlit until an ordinary dictation has finished — comparison runs do not
+count, since compare mode deliberately injects nothing. It does not claim the text *landed*:
+`TextInjector` documents that neither the AX write nor the paste fallback reports that
+truthfully, so the row shows what you last dictated and leaves the verdict to your eyes.
+
+The Accessibility row holds the same line. It is satisfied by `DictationController.isArmed`
+rather than by the grant, because TCC will report this app trusted while this copy of it has
+no event tap — and a lamp lit on the grant alone would send you on to hold a dead key.
 
 ---
 
@@ -220,8 +248,8 @@ guess. Turn learning off in Settings and only the dictionary primes the engine.
    Needs AX read of `kAXSelectedTextAttribute` plus an LLM round-trip.
 3. **Branding.** `Brand` in `HUDView.swift` is a two-color placeholder gradient. App icon,
    real palette, HUD motion design, onboarding.
-4. **Onboarding.** A first-run window that walks through both permissions instead of
-   relying on the menu's "Grant…" items.
+4. **Opening setup by itself.** The card exists, but a fresh install still has to find
+   **Set Up Murmur…** in the menu rather than being shown it on the first launch.
 
 ---
 

@@ -112,6 +112,11 @@ down once already.
 VU meter keeps its needle physics in a plain reference type the view merely holds, which is
 invisible to SwiftUI's state graph. Don't "clean that up" into `@State`.
 
+**`Permissions.hasAccessibility` being true does not mean the hotkey works.** TCC can report
+the app trusted while this process holds no event tap — which is why
+`DictationController.isArmed` exists, and why the setup card distinguishes the two. Don't
+collapse them: the collapsed version tells someone to hold a key that is dead.
+
 ---
 
 ## The audio path
@@ -367,7 +372,8 @@ lookahead, `\p{L}`, and `$1`–`$9` in replacements. Nothing else.
 ## What isn't built
 
 1. **Command Mode** — select text, hold a second key, "make this more formal."
-2. **Onboarding** — a first-run window walking through the macOS permissions.
+2. **Showing setup by itself** — the card is there, but only from the menu; a first launch
+   does not open it.
 3. **Code signing on Windows.** That build is still unsigned for distribution, so users
    will meet SmartScreen. macOS releases are notarized — see README ▸ Releasing.
 4. **An installer** for Windows, and model download from inside the app rather than by

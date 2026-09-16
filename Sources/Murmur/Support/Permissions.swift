@@ -29,6 +29,20 @@ enum Permissions {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// The prompt has been shown and refused, and System Settings is where that gets undone.
+    ///
+    /// `.restricted` is deliberately not this. There the refusal is a policy on the machine
+    /// rather than the user's own answer, and the privacy pane cannot change it — sending
+    /// someone there would be handing them a recovery path that does not work.
+    static var microphoneWasDenied: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .denied
+    }
+
+    /// Withheld by policy. Murmur cannot ask, and the user cannot grant it.
+    static var microphoneIsRestricted: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .restricted
+    }
+
     static func requestMicrophone() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
